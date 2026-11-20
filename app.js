@@ -356,6 +356,7 @@ function render() {
   renderHoldings();
   renderAttribution();
   renderTrades();
+  renderFlows();
   renderStrategy();
   renderAnalyze();
 }
@@ -398,9 +399,9 @@ function renderHoldings() {
       saveLocal(); renderStrategy();
     }
   };
-  let cashSum = 0;
-  Object.keys(S.cash || {}).forEach((k) => { cashSum += Number(S.cash[k] || 0); });
-  $("#cashNote").textContent = "现金 " + money(cashSum);
+  const lastRow = SERIES && SERIES.length ? SERIES[SERIES.length - 1] : null;
+  const cashNow = lastRow ? lastRow.cash : 0;
+  $("#cashNote").textContent = "现金 " + money(cashNow);
 }
 
 function renderAttribution() {
@@ -446,6 +447,33 @@ function renderTrades() {
 }
 
 // ---------- 渲染：策略 ----------
+function renderFlows() {
+  const tb = $("#flowBody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  const fs = S.flows.slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  fs.forEach((f) => {
+    const amt = Number(f.amount);
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + f.date + "</td><td class='l'>" + (f.account || "") + "</td>" +
+      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" + (amt >= 0 ? "+" : "") + fmt(amt, 0) + "</td>" +
+      "<td class='l'>" + (f.note || "") + "</td>" +
+      "<td><button class='mini' data-delflow='" + f.id + "'>删</button></td>";
+    tb.appendChild(tr);
+  });
+  if (!fs.length) tb.innerHTML = "<tr><td colspan='5' class='muted'>还没有入金记录</td></tr>";
+  const sum = fs.reduce((a, f) => a + Number(f.amount), 0);
+  const el = $("#flowSum");
+  if (el) el.textContent = "净投入 " + money(sum);
+  tb.onclick = (e) => {
+    const id = e.target.getAttribute && e.target.getAttribute("data-delflow");
+    if (!id) return;
+    if (!confirm("删除这条资金记录？")) return;
+    S.flows = S.flows.filter((x) => x.id !== id);
+    saveLocal(); render();
+  };
+}
+
 function renderStrategy() {
   const sig = SIGNAL;
   const card = $("#sigErp");
@@ -967,6 +995,14 @@ async function main() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: "application/json" }));
     a.download = "portfolio-" + today() + ".json"; a.click();
+  };
+  $("#btnReset").onclick = () => {
+    if (!confirm("清空本机所有持仓 / 交易 / 入金记录？")) return;
+    if (!confirm("再确认一次：不可恢复（云端私有仓库不会被清空）")) return;
+    const accounts = S.accounts;
+    S = { version: 2, accounts: accounts, cash: {}, flows: [], trades: [], settings: S.settings, legs: {}, priceCache: {}, meta: { updated: today() } };
+    ensureSettings(); saveLocal(); render();
+    alert("已清空");
   };
   $("#btnImport").onclick = () => $("#fileImport").click();
   $("#fileImport").onchange = (e) => {

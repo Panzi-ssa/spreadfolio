@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#2f6fed">
 <title>Spreadfolio · 我的持仓与收益</title>
 <style>
-  :root{--bg:#f5f7fa;--card:#fff;--line:#e8ecf2;--txt:#1c2430;--mut:#8a94a6;
+  :root{color-scheme:light;--bg:#f5f7fa;--card:#fff;--line:#e8ecf2;--txt:#1c2430;--mut:#8a94a6;
         --up:#e03131;--down:#2f9e44;--blue:#2f6fed;--radius:14px}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{margin:0;overflow-x:hidden;background:var(--bg);color:var(--txt);
@@ -170,6 +170,14 @@
       </form>
     </div>
     <div class="card">
+      <h3>资金流水 <small id="flowSum"></small></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">日期</th><th class="l">账户</th><th>金额</th><th class="l">备注</th><th></th></tr></thead>
+        <tbody id="flowBody"></tbody></table></div>
+      <div class="hint">入金记正数、出金记负数。这里删掉记录，总投入和现金会同步变化。</div>
+    </div>
+
+    <div class="card">
       <h3>CSV 导入对账单</h3>
       <div class="row">
         <button id="btnCsv">选择 CSV 文件</button>
@@ -282,6 +290,12 @@
         换设备时：填好上面三项 → 点「保存本机配置」→ 点「从云端拉取」，数据就回来了。
       </div>
     </div>
+    <div class="card">
+      <h3>危险操作</h3>
+      <div class="row"><button id="btnReset" style="color:#c92a2a;border-color:#ffc9c9">清空全部数据</button></div>
+      <div class="hint">清空本机的持仓、交易、入金记录（云端私有仓库不动，需要的话清完再同步一次覆盖）。</div>
+    </div>
+
     <div class="card">
       <h3>本地备份</h3>
       <div class="row"><button id="btnExport">导出 JSON</button><button id="btnImport">导入 JSON</button></div>
