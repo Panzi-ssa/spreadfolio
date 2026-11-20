@@ -1,0 +1,32 @@
+name: update signal
+
+on:
+  schedule:
+    # 每天 UTC 10:30 = 北京 18:30（收盘后）
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: fetch signal
+        run: python scripts/fetch_signal.py
+      - name: commit if changed
+        run: |
+          git config user.name  "signal-bot"
+          git config user.email "signal-bot@users.noreply.github.com"
+          if git diff --quiet -- signal.json; then
+            echo "no change"
+          else
+            git add signal.json
+            git commit -m "chore: update signal $(date -u +%F)"
+            git push
+          fi

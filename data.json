@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "accounts": [
+    { "id": "A", "name": "证券账户（场内）" },
+    { "id": "B", "name": "基金账户（场外）" }
+  ],
+  "cash": { "A": 118.4, "B": 0 },
+  "flows": [
+    { "id": "f1", "date": "2026-11-20", "account": "A", "amount": 100000, "note": "初始入金" },
+    { "id": "f2", "date": "2026-12-01", "account": "A", "amount": 1500, "note": "12月定投-轮动" },
+    { "id": "f3", "date": "2026-12-01", "account": "B", "amount": 1500, "note": "12月定投-纳指" }
+  ],
+  "trades": [
+    { "id": "t1", "date": "2026-11-20", "account": "A", "code": "515080", "name": "中证红利ETF", "side": "buy", "shares": 63700, "price": 1.568, "fee": 5 },
+    { "id": "t2", "date": "2026-12-01", "account": "A", "code": "515080", "name": "中证红利ETF", "side": "buy", "shares": 956, "price": 1.569, "fee": 0 },
+    { "id": "t3", "date": "2026-12-01", "account": "B", "code": "040046", "name": "华安纳斯达克100", "side": "buy", "shares": 315.4, "price": 4.755, "fee": 2.25 }
+  ],
+  "settings": {
+    "targets": { "rot": 50, "spy": 25, "ndx": 25 },
+    "divCode": "515080",
+    "bondCode": "511010",
+    "pe": { "value": 13.09, "date": "2026-11-20" }
+  },
+  "legs": { "515080": "rot", "511010": "rot", "040046": "ndx" },
+  "priceCache": {},
+  "meta": { "updated": "2026-11-21" }
+}
