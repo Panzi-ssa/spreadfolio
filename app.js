@@ -387,7 +387,22 @@ function legOf(code) {
 const LEG_NAME = { rot: "股债轮动", spy: "标普500", ndx: "纳指", other: "其他" };
 
 function marketOf(code) {
-  return /^(5|15|16|11|12)/.test(String(code)) ? "场内" : "场外";
+  const ts = S.trades.filter((x) => x.code === code);
+  for (let i = ts.length - 1; i >= 0; i--) if (ts[i].market) return ts[i].market;
+  return "";
+}
+
+// 老数据没有类型字段时，按代码先估一次（只跑一次，之后以用户选择为准）
+function migrateMarket() {
+  let n = 0;
+  S.trades.forEach((x) => {
+    if (!x.market) { x.market = /^(5|15|16|11|12)/.test(String(x.code)) ? "场内" : "场外"; n++; }
+  });
+  (S.plans || []).forEach((pl) => {
+    if (!pl.market) { pl.market = "场外"; n++; }
+  });
+  if (n) saveLocal();
+  return n;
 }
 
 function accountOf(code) {
@@ -424,7 +439,7 @@ function renderHoldings() {
   if (typeSel) typeSel.value = F.type;
 
   const list = hs.filter((h) => {
-    if (F.type && marketOf(h.code) !== F.type) return false;
+    if (F.type && (marketOf(h.code) || "未分类") !== F.type) return false;
     if (F.account && accountOf(h.code) !== F.account) return false;
     if (F.leg && legOf(h.code) !== F.leg) return false;
     return true;
@@ -442,7 +457,9 @@ function renderHoldings() {
     const mk = marketOf(h.code);
     const tr = document.createElement("tr");
     tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name +
-      " <span class='muted' style='font-size:11px'>" + mk + "</span></td>" +
+      " <select class='mksel' data-code='" + h.code + "' style='width:auto;padding:1px 4px;font-size:11px;display:inline-block'>" +
+      ["场内", "场外"].map((k) => "<option value='" + k + "'" + (k === mk ? " selected" : "") + ">" + k + "</option>").join("") +
+      "</select></td>" +
       "<td class='l hide-s'><select class='legsel' data-code='" + h.code + "'>" +
       ["rot", "spy", "ndx", "other"].map((k) => "<option value='" + k + "'" + (k === leg ? " selected" : "") + ">" + LEG_NAME[k] + "</option>").join("") +
       "</select></td>" +
@@ -456,6 +473,13 @@ function renderHoldings() {
 
   tb.onchange = (e) => {
     const sel = e.target;
+    if (sel.classList.contains("mksel")) {
+      const mcode = sel.getAttribute("data-code");
+      let hit = false;
+      S.trades.forEach((x) => { if (x.code === mcode) { x.market = sel.value; hit = true; } });
+      if (hit) { saveLocal(); renderHoldings(); }
+      return;
+    }
     if (sel.classList.contains("legsel")) {
       S.legs[sel.getAttribute("data-code")] = sel.value;
       saveLocal(); renderStrategy();
@@ -618,7 +642,7 @@ function materializePlans() {
         S.flows.push({ id: uid(), date: d, account: acc, amount: Number(amt.toFixed(2)), note: "定投扣款 " + plan.code });
         S.trades.push({
           id: uid(), date: d, account: acc, code: plan.code, name: plan.name || plan.code,
-          side: "buy", shares: shares, price: Number(e.px.toFixed(6)), fee: 0, auto: true, planId: plan.id
+          side: "buy", shares: shares, price: Number(e.px.toFixed(6)), fee: 0, auto: true, planId: plan.id, market: plan.market || "场外"
         });
         added++;
       });
@@ -972,7 +996,7 @@ function previewCSV(rows) {
   btn.textContent = "确认导入 " + parsed.length + " 条";
   btn.style.cssText = "margin-top:8px;padding:9px 14px;border:0;border-radius:9px;background:#2f6fed;color:#fff;font-size:14px";
   btn.onclick = () => {
-    parsed.forEach((p) => S.trades.push(Object.assign({ id: uid(), account: (S.accounts[0] || {}).id || "A" }, p)));
+    parsed.forEach((p) => S.trades.push(Object.assign({ id: uid(), account: (S.accounts[0] || {}).id || "A", market: $("#initMarket").value || "场内" }, p)));
     saveLocal(); CSV_ROWS = null; box.innerHTML = "已导入 " + parsed.length + " 条"; render(); refreshPrices();
   };
   box.appendChild(btn);
@@ -1045,7 +1069,7 @@ async function addPosition() {
   const date = $("#pDate").value || today();
   const name = $("#pName").value.trim() || NAME_CACHE[code] || code;
   S.flows.push({ id: uid(), date: date, account: acc, amount: Number(cost.toFixed(2)), note: "期初持仓 " + code });
-  S.trades.push({ id: uid(), date: date, account: acc, code: code, name: name, side: "buy", shares: Number(shares.toFixed(4)), price: Number(price.toFixed(6)), fee: 0, init: true });
+  S.trades.push({ id: uid(), date: date, account: acc, code: code, name: name, side: "buy", shares: Number(shares.toFixed(4)), price: Number(price.toFixed(6)), fee: 0, init: true, market: $("#pMarket").value });
   if (!S.legs[code]) S.legs[code] = "other";
   saveLocal(); render(); refreshPrices();
   $("#pCode").value = ""; $("#pName").value = ""; $("#pShares").value = ""; $("#pMv").value = ""; $("#pCost").value = "";
@@ -1121,7 +1145,7 @@ function bindForms() {
       id: uid(), date: $("#tDate").value, account: $("#tAccount").value,
       code: $("#tCode").value.trim(), name: $("#tName").value.trim() || $("#tCode").value.trim(),
       side: $("#tSide").value, shares: Number($("#tShares").value), price: Number($("#tPrice").value),
-      fee: Number($("#tFee").value || 0), leg: $("#tLeg").value
+      fee: Number($("#tFee").value || 0), leg: $("#tLeg").value, market: $("#tMarket").value
     };
     if (!t.code || !t.shares || !t.price) return alert("代码/份额/价格必填");
     S.legs[t.code] = t.leg;
@@ -1182,7 +1206,7 @@ function bindForms() {
     const plan = {
       id: uid(), code: code, name: NAME_CACHE[code] || code, per: per,
       freq: freq, day: Number($("#plDay").value) || 1,
-      start: $("#plStart").value || today(), leg: $("#plLeg").value, enabled: true
+      start: $("#plStart").value || today(), leg: $("#plLeg").value, market: $("#plMarket").value || "场外", enabled: true
     };
     S.plans.push(plan);
     S.legs[code] = plan.leg;
@@ -1387,6 +1411,7 @@ async function main() {
     rd.readAsText(f);
   };
 
+  migrateMarket();
   render();
   await refreshPrices(false);
   await loadSignal(false);
