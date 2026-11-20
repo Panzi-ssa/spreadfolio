@@ -30,6 +30,12 @@ function fmt(x, d) {
   if (x === null || x === undefined || isNaN(x)) return "-";
   return Number(x).toLocaleString("zh-CN", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
+function fmtPnl(x) {
+  if (x === null || x === undefined || isNaN(x)) return "-";
+  const d = Math.abs(x) < 1000 ? 2 : 0;
+  return (x >= 0 ? "+" : "") + fmt(x, d);
+}
+
 function pct(x, d) { return (x * 100).toFixed(d === undefined ? 2 : d) + "%"; }
 function days(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
 function money(x) { return "¥" + fmt(x, 0); }
@@ -389,7 +395,7 @@ function renderHoldings() {
       "</select></td>" +
       "<td>" + fmt(h.shares, 0) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
       "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 0) : "-") + "</td>" +
-      "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? (pnl >= 0 ? "+" : "") + fmt(pnl, 0) : "-") + "</td>" +
+      "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>" +
       "<td class='hide-s'>" + (mv && total ? pct(mv / total) : "-") + "</td>";
     tb.appendChild(tr);
   });
@@ -415,9 +421,9 @@ function renderAttribution() {
     const cls = r.total >= 0 ? "up" : "down";
     const tr = document.createElement("tr");
     tr.innerHTML = "<td class='l'>" + r.name + " <span class='muted'>" + r.code + "</span></td>" +
-      "<td class='" + (r.realized >= 0 ? "up" : "down") + "'>" + (r.realized >= 0 ? "+" : "") + fmt(r.realized, 0) + "</td>" +
-      "<td class='" + (r.unrealized >= 0 ? "up" : "down") + "'>" + (r.unrealized >= 0 ? "+" : "") + fmt(r.unrealized, 0) + "</td>" +
-      "<td class='" + cls + "'><b>" + (r.total >= 0 ? "+" : "") + fmt(r.total, 0) + "</b></td>" +
+      "<td class='" + (r.realized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.realized) + "</td>" +
+      "<td class='" + (r.unrealized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.unrealized) + "</td>" +
+      "<td class='" + cls + "'><b>" + fmtPnl(r.total) + "</b></td>" +
       "<td>" + (total ? pct(r.total / Math.abs(total)) : "-") + "</td>";
     tb.appendChild(tr);
   });
