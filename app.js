@@ -574,7 +574,8 @@ function renderPlans() {
     const done = doneT.length;
     const lastDone = done ? doneT.map((x) => x.date).sort().slice(-1)[0] : null;
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td class='l'>" + (plan.name || plan.code) + " <span class='muted'>" + plan.code + "</span></td>" +
+    const pname = (plan.name && plan.name !== plan.code) ? plan.name : (NAME_CACHE[plan.code] || plan.code);
+    tr.innerHTML = "<td class='l'>" + pname + " <span class='muted'>" + plan.code + "</span></td>" +
       "<td>" + (plan.freq === "daily" ? "每日" : plan.freq === "weekly" ? "每周" : "每月") + "</td>" +
       "<td><b>" + money(periodAmount(plan)) + "</b></td>" +
       "<td>" + money(periodAmount(plan) * perDiv(plan.freq)) + "</td>" +
@@ -1061,15 +1062,28 @@ function bindForms() {
   });
   $("#posForm").onsubmit = (e) => { e.preventDefault(); addPosition(); };
 
+  $("#plCode").addEventListener("blur", async () => {
+    const code = $("#plCode").value.trim();
+    const hint = $("#plNameHint");
+    if (!code) { hint.textContent = "输入代码后自动显示基金名称"; return; }
+    if (NAME_CACHE[code]) { hint.textContent = "名称：" + NAME_CACHE[code]; return; }
+    hint.textContent = "查询中…";
+    try { if (!PRICES[code]) await loadPrices([code], false); } catch (e) { /* ignore */ }
+    hint.textContent = NAME_CACHE[code] ? "名称：" + NAME_CACHE[code] : "未查到该代码（可能是场内代码或代码有误）";
+  });
+
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
   $("#btnPlanNav").onclick = manualNAV;
 
-  $("#planForm").onsubmit = (e) => {
+  $("#planForm").onsubmit = async (e) => {
     e.preventDefault();
     const code = $("#plCode").value.trim();
     const per = Number($("#plPer").value);
     if (!code || !per) return alert("填一下代码和每次金额");
+    if (!NAME_CACHE[code]) {
+      try { if (!PRICES[code]) await loadPrices([code], false); } catch (e) { /* ignore */ }
+    }
     const freq = $("#plFreq").value;
     const plan = {
       id: uid(), code: code, name: NAME_CACHE[code] || code, per: per,

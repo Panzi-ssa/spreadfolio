@@ -221,6 +221,7 @@
         <form id="planForm" style="margin-top:10px">
           <div><label>代码</label><input id="plCode" placeholder="016452"></div>
           <div><label>每次扣款（元）</label><input id="plPer" type="number" step="0.01" placeholder="100"></div>
+          <div class="full hint" id="plNameHint">输入代码后自动显示基金名称</div>
           <div><label>频率</label><select id="plFreq">
             <option value="daily">每个交易日</option>
             <option value="weekly">每周一次</option>
@@ -347,10 +348,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21j</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21k</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121j"></script>
+<script src="app.js?v=20261121k"></script>
 </body>
 </html>
