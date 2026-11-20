@@ -426,7 +426,7 @@ function ensureGroups() {
 }
 
 function groupList() {
-  return (S.groups || []).concat([{ id: SAT, name: "卫星（不参与）", target: 0, sat: true }]);
+  return (S.groups || []).concat([{ id: SAT, name: "自选（不参与）", target: 0, sat: true }]);
 }
 
 function groupName(id) {
@@ -564,12 +564,20 @@ function renderSatellite(list) {
     if (pnl !== null) pnlSum += pnl;
     const tr = document.createElement("tr");
     tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name + "</td>" +
+      "<td class='l'><select class='satleg' data-code='" + h.code + "'>" + groupOptions(SAT) + "</select></td>" +
       "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
       "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
       "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>";
     tb.appendChild(tr);
   });
   $("#satSum").textContent = "市值 " + money(mvSum) + " · 盈亏 " + fmtPnl(pnlSum);
+  tb.onchange = (e) => {
+    const sel = e.target;
+    if (!sel.classList || !sel.classList.contains("satleg")) return;
+    const code = sel.getAttribute("data-code");
+    S.legs[code] = sel.value;
+    saveLocal(); render();
+  };
 }
 
 function renderAttribution() {
@@ -846,7 +854,7 @@ function renderGroups() {
   tb.onclick = (e) => {
     const id = e.target.getAttribute && e.target.getAttribute("data-delgrp");
     if (!id) return;
-    if (!confirm("删除该分组？已归到它的持仓会变成「卫星」")) return;
+    if (!confirm("删除该分组？已归到它的持仓会变成「自选」")) return;
     S.groups = S.groups.filter((g) => g.id !== id);
     Object.keys(S.legs).forEach((k) => { if (S.legs[k] === id) S.legs[k] = SAT; });
     saveLocal(); render(); renderGroups();
@@ -935,7 +943,7 @@ function renderRebalance() {
     tb.appendChild(tr);
   });
   if (!gs.length) tb.innerHTML = "<tr><td colspan='5' class='muted'>还没有策略分组，去设置里加</td></tr>";
-  $("#rbTotal").textContent = "策略金额 " + money(base) + (satMv ? " · 卫星 " + money(satMv) : "") + " · 现金 " + money(cash);
+  $("#rbTotal").textContent = "策略金额 " + money(base) + (satMv ? " · 自选 " + money(satMv) : "") + " · 现金 " + money(cash);
 }
 
 function renderRotInternal() {

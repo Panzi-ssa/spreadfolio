@@ -127,12 +127,12 @@
       </table></div>
     </div>
     <div class="card" id="satCard" style="display:none">
-      <h3>卫星仓位 <small id="satSum"></small></h3>
+      <h3>自选仓位 <small id="satSum"></small></h3>
       <div class="tablewrap"><table>
-        <thead><tr><th class="l">代码</th><th class="l">名称</th><th>份额</th>
+        <thead><tr><th class="l">代码</th><th class="l">名称</th><th class="l">分组</th><th>份额</th>
         <th class="hide-s">成本</th><th>现价</th><th>市值</th><th>盈亏</th></tr></thead>
         <tbody id="satBody"></tbody></table></div>
-      <div class="hint">卫星不参与策略配比，也不计入再平衡的建议金额。</div>
+      <div class="hint">自选仓位不参与策略配比、不计入再平衡；在「分组」里选一个策略分组即可移回。</div>
     </div>
 
     <div class="card">
@@ -296,7 +296,7 @@
         <thead><tr><th class="l">分组</th><th>目标</th><th>实际</th><th>偏离</th><th>建议操作</th></tr></thead>
         <tbody id="rbBody"></tbody>
       </table></div>
-      <div class="hint">目标权重在「设置」里改。偏离超过 ±5pp 会标红；建议金额按「策略金额」（总资产扣掉卫星）计算。</div>
+      <div class="hint">目标权重在「设置」里改。偏离超过 ±5pp 会标红；建议金额按「策略金额」（总资产扣掉自选）计算。</div>
     </div>
 
     <div class="card">
@@ -381,10 +381,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21t</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21u</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121t"></script>
+<script src="app.js?v=20261121u"></script>
 </body>
 </html>
