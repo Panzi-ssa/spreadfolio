@@ -49,6 +49,8 @@ function ensureSettings() {
   st.bondCode = st.bondCode || "511010";
   st.pe = st.pe || { value: 13.09, date: "2026-11-20" };
   S.legs = S.legs || {};
+  st.plans = S.plans = S.plans || [];
+  S.planSkip = S.planSkip || {};
 }
 
 async function loadState() {
@@ -365,6 +367,7 @@ function render() {
   renderAttribution();
   renderTrades();
   renderFlows();
+  renderPlans();
   renderStrategy();
   renderAnalyze();
 }
@@ -449,12 +452,113 @@ function renderTrades() {
     const id = e.target.getAttribute && e.target.getAttribute("data-del");
     if (!id) return;
     if (!confirm("删除这条记录？")) return;
+    const t = S.trades.find((x) => x.id === id);
+    if (t && t.planId) {
+      S.planSkip[t.planId] = S.planSkip[t.planId] || [];
+      S.planSkip[t.planId].push(t.date);
+    }
     S.trades = S.trades.filter((x) => x.id !== id);
     saveLocal(); render();
   };
 }
 
 // ---------- 渲染：策略 ----------
+// ---------- 定投计划 ----------
+function periodAmount(plan) {
+  const div = plan.freq === "daily" ? 21 : plan.freq === "weekly" ? 4 : 1;
+  return plan.monthly / div;
+}
+
+function execDates(plan, arr) {
+  if (!arr.length) return [];
+  if (plan.freq === "daily") return arr.slice();
+  if (plan.freq === "monthly") {
+    const d0 = Number(plan.day) || 1;
+    const hit = arr.find((d) => Number(d.slice(8, 10)) >= d0);
+    return [hit || arr[arr.length - 1]];
+  }
+  const wd = Math.min(5, Math.max(1, Number(plan.day) || 1));
+  const groups = [];
+  const first = new Date(arr[0] + "T00:00:00");
+  const offset = ((first.getDay() === 0 ? 7 : first.getDay()) - 1);
+  arr.forEach((d) => {
+    const dd = Number(d.slice(8, 10));
+    const idx = Math.floor((dd - 1 + offset) / 7);
+    if (!groups[idx]) groups[idx] = [];
+    groups[idx].push(d);
+  });
+  return groups.filter(Boolean).map((g) => {
+    const hit = g.find((d) => { const w = new Date(d + "T00:00:00").getDay(); return (w === 0 ? 7 : w) >= wd; });
+    return hit || g[g.length - 1];
+  });
+}
+
+function materializePlans() {
+  if (!S.plans || !S.plans.length) return 0;
+  const todayStr = today();
+  let added = 0;
+  S.plans.forEach((plan) => {
+    if (plan.enabled === false) return;
+    const series = PRICES[plan.code];
+    if (!series || !series.length) return;
+    const skip = S.planSkip[plan.id] || [];
+    const acc = (S.accounts[0] || {}).id || "A";
+    const amt = periodAmount(plan);
+    const byMonth = {};
+    series.forEach((p) => {
+      if (p.date < (plan.start || "2000-01-01") || p.date > todayStr) return;
+      const m = p.date.slice(0, 7);
+      (byMonth[m] = byMonth[m] || []).push(p.date);
+    });
+    Object.keys(byMonth).sort().forEach((m) => {
+      const ex = execDates(plan, byMonth[m]);
+      ex.forEach((d) => {
+        if (skip.indexOf(d) >= 0) return;
+        if (S.trades.some((t) => t.planId === plan.id && t.date === d)) return;
+        const e = priceOn(plan.code, d);
+        if (!e || !e.px) return;
+        const shares = Number((amt / e.px).toFixed(4));
+        S.flows.push({ id: uid(), date: d, account: acc, amount: Number(amt.toFixed(2)), note: "定投扣款 " + plan.code });
+        S.trades.push({
+          id: uid(), date: d, account: acc, code: plan.code, name: plan.name || plan.code,
+          side: "buy", shares: shares, price: Number(e.px.toFixed(6)), fee: 0, auto: true, planId: plan.id
+        });
+        added++;
+      });
+    });
+  });
+  if (added) saveLocal();
+  return added;
+}
+
+function renderPlans() {
+  const tb = $("#planBody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  (S.plans || []).forEach((plan) => {
+    const done = S.trades.filter((t) => t.planId === plan.id).length;
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td class='l'>" + (plan.name || plan.code) + " <span class='muted'>" + plan.code + "</span></td>" +
+      "<td>" + (plan.freq === "daily" ? "每日" : plan.freq === "weekly" ? "每周" : "每月") + "</td>" +
+      "<td>" + money(plan.monthly) + "</td>" +
+      "<td><b>" + money(periodAmount(plan)) + "</b></td>" +
+      "<td>" + done + " 笔</td>" +
+      "<td><button class='mini' data-delplan='" + plan.id + "'>删</button></td>";
+    tb.appendChild(tr);
+  });
+  if (!(S.plans || []).length) tb.innerHTML = "<tr><td colspan='6' class='muted'>还没有定投计划</td></tr>";
+  const sum = (S.plans || []).reduce((a, p) => a + Number(p.monthly || 0), 0);
+  const el = $("#planSum");
+  if (el) el.textContent = "每月合计 " + money(sum);
+  tb.onclick = (e) => {
+    const id = e.target.getAttribute && e.target.getAttribute("data-delplan");
+    if (!id) return;
+    if (!confirm("删除这条计划？已生成的交易记录会保留")) return;
+    S.plans = S.plans.filter((p) => p.id !== id);
+    saveLocal(); render();
+  };
+}
+
 function renderFlows() {
   const tb = $("#flowBody");
   if (!tb) return;
@@ -907,6 +1011,35 @@ function bindForms() {
   });
   $("#posForm").onsubmit = (e) => { e.preventDefault(); addPosition(); };
 
+  $("#plStart").value = today();
+  $("#planForm").onsubmit = (e) => {
+    e.preventDefault();
+    const code = $("#plCode").value.trim();
+    const monthly = Number($("#plMonthly").value);
+    if (!code || !monthly) return alert("填一下代码和月预算");
+    const plan = {
+      id: uid(), code: code, name: NAME_CACHE[code] || code, monthly: monthly,
+      freq: $("#plFreq").value, day: Number($("#plDay").value) || 1,
+      start: $("#plStart").value || today(), leg: $("#plLeg").value, enabled: true
+    };
+    S.plans.push(plan);
+    S.legs[code] = plan.leg;
+    saveLocal(); render(); refreshPrices();
+    $("#plCode").value = ""; $("#plMonthly").value = "";
+    alert("已创建定投计划，正在按历史净值补生成记录…");
+  };
+  const planPreview = () => {
+    const monthly = Number($("#plMonthly").value) || 0;
+    const freq = $("#plFreq").value;
+    const div = freq === "daily" ? 21 : freq === "weekly" ? 4 : 1;
+    $("#plPreview").textContent = monthly
+      ? "每期 " + money(monthly / div) + "（月预算 ÷ " + div + (freq === "daily" ? " 个交易日" : freq === "weekly" ? " 周" : "") + "）"
+      : "按频率自动算出每期金额";
+  };
+  $("#plMonthly").addEventListener("input", planPreview);
+  $("#plFreq").addEventListener("change", planPreview);
+  planPreview();
+
   $("#btnInit").onclick = importInit;
   $("#initDate").value = today();
   $("#initText").addEventListener("input", () => {
@@ -958,10 +1091,12 @@ function bindForms() {
 async function refreshPrices(force) {
   const codes = [];
   S.trades.forEach((t) => { if (codes.indexOf(t.code) < 0) codes.push(t.code); });
+  (S.plans || []).forEach((p) => { if (codes.indexOf(p.code) < 0) codes.push(p.code); });
   if (!codes.length) { PRICES = {}; render(); return; }
   $("#syncNote").textContent = "拉取行情中…";
   await loadPrices(codes, force);
-  $("#syncNote").textContent = "行情已更新 " + new Date().toLocaleTimeString("zh-CN");
+  const n = materializePlans();
+  $("#syncNote").textContent = "行情已更新 " + new Date().toLocaleTimeString("zh-CN") + (n ? "，生成定投 " + n + " 笔" : "");
   render();
 }
 

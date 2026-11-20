@@ -179,6 +179,37 @@
       </form>
     </div>
     <div class="card">
+      <h3>定投计划 <small id="planSum"></small></h3>
+      <div class="hint" style="margin-bottom:8px">
+        设一个月度预算，按频率自动分摊到每个交易日；多只标的各建一条，互不影响。
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">标的</th><th>频率</th><th>月预算</th><th>每期金额</th><th>已生成</th><th></th></tr></thead>
+        <tbody id="planBody"></tbody></table></div>
+      <details style="margin-top:10px">
+        <summary style="font-size:13px;color:#41506b;cursor:pointer">新建定投计划</summary>
+        <form id="planForm" style="margin-top:10px">
+          <div><label>代码</label><input id="plCode" placeholder="016452"></div>
+          <div><label>月预算（元）</label><input id="plMonthly" type="number" step="1" placeholder="1000"></div>
+          <div><label>频率</label><select id="plFreq">
+            <option value="daily">每个交易日</option>
+            <option value="weekly">每周一次</option>
+            <option value="monthly">每月一次</option>
+          </select></div>
+          <div><label>扣款日（每周:1-5 / 每月:1-28）</label><input id="plDay" type="number" min="1" max="28" value="1"></div>
+          <div><label>开始日期</label><input id="plStart" type="date"></div>
+          <div><label>所属腿</label><select id="plLeg">
+            <option value="rot">股债轮动</option><option value="spy">标普500</option>
+            <option value="ndx">纳指</option><option value="other">其他</option>
+          </select></div>
+          <div class="full hint" id="plPreview">按频率自动算出每期金额</div>
+          <button class="primary" type="submit">创建计划</button>
+        </form>
+      </details>
+      <div class="hint">生成的记录会写进「交易记录」，带「定投」标记，可单独删除（删了不会再生成）。</div>
+    </div>
+
+    <div class="card">
       <h3>资金流水 <small id="flowSum"></small></h3>
       <div class="tablewrap"><table>
         <thead><tr><th class="l">日期</th><th class="l">账户</th><th>金额</th><th class="l">备注</th><th></th></tr></thead>
