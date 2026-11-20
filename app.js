@@ -440,7 +440,10 @@ function accountOf(code) {
 }
 
 function renderHoldings() {
-  const hs = holdings();
+  const all = holdings();
+  const satList = all.filter((h) => legOf(h.code) === SAT);
+  const hs = all.filter((h) => legOf(h.code) !== SAT);
+  renderSatellite(satList);
   const tb = $("#holdBody");
   if (!tb) return;
   if (!window.HOLD_FILTER) window.HOLD_FILTER = { type: "", account: "", leg: "" };
@@ -495,7 +498,7 @@ function renderHoldings() {
       "<td class='hide-s'>" + (mv && total ? pct(mv / total) : "-") + "</td>";
     tb.appendChild(tr);
   });
-  if (!list.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>" + (hs.length ? "没有符合筛选的持仓" : "还没有持仓，去「交易」里记一笔") + "</td></tr>";
+  if (!list.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>" + (hs.length ? "没有符合筛选的持仓" : "还没有策略持仓，去「交易」里记一笔") + "</td></tr>";
 
   tb.onchange = (e) => {
     const sel = e.target;
@@ -518,6 +521,29 @@ function renderHoldings() {
   const lastRow = SERIES && SERIES.length ? SERIES[SERIES.length - 1] : null;
   $("#cashNote").textContent = "现金 " + money(lastRow ? lastRow.cash : 0) +
     (list.length !== hs.length ? " · 显示 " + list.length + "/" + hs.length : "");
+}
+
+function renderSatellite(list) {
+  const card = $("#satCard"), tb = $("#satBody");
+  if (!card || !tb) return;
+  if (!list.length) { card.style.display = "none"; return; }
+  card.style.display = "";
+  tb.innerHTML = "";
+  let mvSum = 0, pnlSum = 0;
+  list.forEach((h) => {
+    const px = lastPrice(h.code);
+    const mv = px ? px * h.shares : 0;
+    const pnl = px ? mv - h.cost : null;
+    mvSum += mv;
+    if (pnl !== null) pnlSum += pnl;
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name + "</td>" +
+      "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
+      "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
+      "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>";
+    tb.appendChild(tr);
+  });
+  $("#satSum").textContent = "市值 " + money(mvSum) + " · 盈亏 " + fmtPnl(pnlSum);
 }
 
 function renderAttribution() {
