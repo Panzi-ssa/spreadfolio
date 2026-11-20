@@ -545,13 +545,15 @@ function renderPlans() {
   if (!tb) return;
   tb.innerHTML = "";
   (S.plans || []).forEach((plan) => {
-    const done = S.trades.filter((t) => t.planId === plan.id).length;
+    const doneT = S.trades.filter((t) => t.planId === plan.id);
+    const done = doneT.length;
+    const lastDone = done ? doneT.map((x) => x.date).sort().slice(-1)[0] : null;
     const tr = document.createElement("tr");
     tr.innerHTML = "<td class='l'>" + (plan.name || plan.code) + " <span class='muted'>" + plan.code + "</span></td>" +
       "<td>" + (plan.freq === "daily" ? "每日" : plan.freq === "weekly" ? "每周" : "每月") + "</td>" +
       "<td><b>" + money(periodAmount(plan)) + "</b></td>" +
       "<td>" + money(periodAmount(plan) * perDiv(plan.freq)) + "</td>" +
-      "<td>" + done + " 笔</td>" +
+      "<td>" + done + " 笔" + (lastDone ? " <span class='muted'>至 " + lastDone.slice(5) + "</span>" : "") + "</td>" +
       "<td><button class='mini' data-delplan='" + plan.id + "'>删</button></td>";
     tb.appendChild(tr);
   });
@@ -559,6 +561,20 @@ function renderPlans() {
   const sum = (S.plans || []).reduce((a, p) => a + periodAmount(p) * perDiv(p.freq), 0);
   const el = $("#planSum");
   if (el) el.textContent = "每月合计 " + money(sum);
+  const note = $("#planNote");
+  if (note) {
+    let lastNav = null;
+    (S.plans || []).forEach((pl) => {
+      const arr = PRICES[pl.code];
+      if (arr && arr.length) {
+        const d = arr[arr.length - 1].date;
+        if (!lastNav || d > lastNav) lastNav = d;
+      }
+    });
+    note.textContent = lastNav
+      ? "净值最新到 " + lastNav + "（场外 T+1 公布），之后的交易日会在净值出来后自动补。"
+      : "生成的记录会写进「交易记录」，带「定投」标记，可单独删除（删了不会再生成）。";
+  }
   tb.onclick = (e) => {
     const id = e.target.getAttribute && e.target.getAttribute("data-delplan");
     if (!id) return;
