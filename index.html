@@ -147,7 +147,8 @@
     <div class="card">
       <h3>导入现有持仓 <small>没有历史交易记录时用</small></h3>
       <div class="hint" style="margin-bottom:8px">
-        一行一只：<code>代码,名称,份额,成本价,建仓日期</code><br>
+        一行一只：<code>代码,名称,份额,摊薄成本价,建仓日期</code><br>
+        成本价填基金 App 的<b>摊薄成本</b>（含分红、含手续费），不是「买入均价」。<br>
         逗号、空格、制表符都行（可直接从 Excel 粘贴）。会同时生成一笔等额入金，保证「累计投入」正确。
       </div>
       <textarea id="initText" class="field" rows="4"
