@@ -417,7 +417,7 @@ function renderHoldings() {
   if (legSel) {
     const legs = [];
     hs.forEach((h) => { const l = legOf(h.code); if (legs.indexOf(l) < 0) legs.push(l); });
-    legSel.innerHTML = "<option value=''>全部腿</option>" + legs.map((l) => "<option value='" + l + "'>" + (LEG_NAME[l] || l) + "</option>").join("");
+    legSel.innerHTML = "<option value=''>全部分组</option>" + legs.map((l) => "<option value='" + l + "'>" + (LEG_NAME[l] || l) + "</option>").join("");
     legSel.value = legs.indexOf(F.leg) >= 0 ? F.leg : "";
     F.leg = legSel.value;
   }
@@ -812,7 +812,7 @@ function renderRotInternal() {
       "<td class='" + (Math.abs(dev) > 5 ? "dev warn" : "dev") + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>";
     tb.appendChild(tr);
   });
-  if (!sum) tb.innerHTML = "<tr><td colspan='4' class='muted'>轮动腿还没有持仓</td></tr>";
+  if (!sum) tb.innerHTML = "<tr><td colspan='4' class='muted'>轮动组还没有持仓</td></tr>";
 }
 
 // ---------- 渲染：分析 ----------
