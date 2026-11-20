@@ -151,8 +151,7 @@
         <div><label>费用</label><input id="tFee" type="number" step="0.01" placeholder="0"></div>
         <div><label>类型</label><select id="tMarket"><option value="场内">场内</option><option value="场外">场外</option></select></div>
         <div class="full"><label>所属分组（用于再平衡）</label>
-          <select id="tLeg"><option value="rot">股债轮动</option><option value="spy">标普500</option>
-          <option value="ndx">纳指</option><option value="other">其他</option></select></div>
+          <select id="tLeg"></select></div>
         <button class="primary" type="submit">保存交易</button>
       </form>
     </div>
@@ -253,10 +252,7 @@
           <div><label>扣款日（每周:1-5 / 每月:1-28）</label><input id="plDay" type="number" min="1" max="28" value="1"></div>
           <div><label>开始日期</label><input id="plStart" type="date"></div>
           <div><label>类型</label><select id="plMarket"><option value="场外">场外</option><option value="场内">场内</option></select></div>
-          <div><label>所属分组</label><select id="plLeg">
-            <option value="rot">股债轮动</option><option value="spy">标普500</option>
-            <option value="ndx">纳指</option><option value="other">其他</option>
-          </select></div>
+          <div><label>所属分组</label><select id="plLeg"></select></div>
           <div class="full hint" id="plPreview">填每次金额，自动换算每月投入</div>
           <button class="primary" type="submit">创建计划</button>
         </form>
@@ -291,7 +287,7 @@
         <thead><tr><th class="l">分组</th><th>目标</th><th>实际</th><th>偏离</th><th>建议操作</th></tr></thead>
         <tbody id="rbBody"></tbody>
       </table></div>
-      <div class="hint">目标权重在「设置」里改。偏离超过 ±5pp 会标红，建议金额按总资产计算（含现金）。</div>
+      <div class="hint">目标权重在「设置」里改。偏离超过 ±5pp 会标红；建议金额按「策略金额」（总资产扣掉卫星）计算。</div>
     </div>
 
     <div class="card">
@@ -333,15 +329,19 @@
   <!-- ========== 设置 ========== -->
   <section id="pSet" class="panel">
     <div class="card">
-      <h3>目标仓位</h3>
-      <form id="targetForm">
-        <div><label>股债轮动 %</label><input id="tgRot" type="number" step="1"></div>
-        <div><label>标普500 %</label><input id="tgSpy" type="number" step="1"></div>
-        <div><label>纳指 %</label><input id="tgNdx" type="number" step="1"></div>
-        <div><label>轮动组里红利 ETF 代码</label><input id="tgDiv" placeholder="515080"></div>
-        <div><label>轮动组里国债 ETF 代码</label><input id="tgBond" placeholder="511010"></div>
-        <button class="primary" type="submit">保存</button>
-      </form>
+      <h3>策略分组 <small id="grpSum"></small></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">名称</th><th>目标 %</th><th></th></tr></thead>
+        <tbody id="grpBody"></tbody></table></div>
+      <div class="row"><button id="btnAddGrp">新增分组</button><button id="btnSaveGrp">保存分组</button></div>
+      <div class="hint">
+        目标会自动归一化到 100%。标为「不参与策略」的分组不计入策略金额，也不参与再平衡。
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1"><label>轮动组里的红利 ETF</label><input id="tgDiv" placeholder="515080"></div>
+        <div style="flex:1"><label>国债 ETF</label><input id="tgBond" placeholder="511010"></div>
+      </div>
+      <div class="row"><button id="btnSaveEtf">保存代码</button></div>
     </div>
     <div class="card">
       <h3>数据仓库（私有）<small id="dataRepoState"></small></h3>
@@ -372,10 +372,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21o</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21q</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121o"></script>
+<script src="app.js?v=20261121q"></script>
 </body>
 </html>

@@ -375,16 +375,42 @@ function render() {
   renderFlows();
   renderPlans();
   renderStrategy();
+  renderGroups();
   renderAnalyze();
 }
 
 function legOf(code) {
   if (S.legs[code]) return S.legs[code];
-  if (code === S.settings.divCode || code === S.settings.bondCode) return "rot";
-  return "other";
+  if (code === S.settings.divCode || code === S.settings.bondCode) return (S.groups[0] || {}).id || "rot";
+  return SAT;
 }
 
-const LEG_NAME = { rot: "股债轮动", spy: "标普500", ndx: "纳指", other: "其他" };
+const SAT = "sat";
+
+function ensureGroups() {
+  if (!S.groups || !S.groups.length) {
+    const tg = (S.settings && S.settings.targets) ? S.settings.targets : { rot: 50, spy: 25, ndx: 25 };
+    S.groups = [
+      { id: "rot", name: "股债轮动", target: Number(tg.rot) || 50 },
+      { id: "spy", name: "标普500", target: Number(tg.spy) || 25 },
+      { id: "ndx", name: "纳指", target: Number(tg.ndx) || 25 }
+    ];
+  }
+  Object.keys(S.legs || {}).forEach((k) => { if (S.legs[k] === "other") S.legs[k] = SAT; });
+}
+
+function groupList() {
+  return (S.groups || []).concat([{ id: SAT, name: "卫星（不参与）", target: 0, sat: true }]);
+}
+
+function groupName(id) {
+  const g = groupList().find((x) => x.id === id);
+  return g ? g.name : id;
+}
+
+function groupOptions(sel) {
+  return groupList().map((g) => "<option value='" + g.id + "'" + (g.id === sel ? " selected" : "") + ">" + g.name + "</option>").join("");
+}
 
 function marketOf(code) {
   const ts = S.trades.filter((x) => x.code === code);
@@ -432,7 +458,7 @@ function renderHoldings() {
   if (legSel) {
     const legs = [];
     hs.forEach((h) => { const l = legOf(h.code); if (legs.indexOf(l) < 0) legs.push(l); });
-    legSel.innerHTML = "<option value=''>全部分组</option>" + legs.map((l) => "<option value='" + l + "'>" + (LEG_NAME[l] || l) + "</option>").join("");
+    legSel.innerHTML = "<option value=''>全部分组</option>" + legs.map((l) => "<option value='" + l + "'>" + groupName(l) + "</option>").join("");
     legSel.value = legs.indexOf(F.leg) >= 0 ? F.leg : "";
     F.leg = legSel.value;
   }
@@ -461,7 +487,7 @@ function renderHoldings() {
       ["场内", "场外"].map((k) => "<option value='" + k + "'" + (k === mk ? " selected" : "") + ">" + k + "</option>").join("") +
       "</select></td>" +
       "<td class='l hide-s'><select class='legsel' data-code='" + h.code + "'>" +
-      ["rot", "spy", "ndx", "other"].map((k) => "<option value='" + k + "'" + (k === leg ? " selected" : "") + ">" + LEG_NAME[k] + "</option>").join("") +
+      groupOptions(leg) +
       "</select></td>" +
       "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
       "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
@@ -749,6 +775,32 @@ function renderFlows() {
   };
 }
 
+function renderGroups() {
+  const tb = $("#grpBody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  (S.groups || []).forEach((g) => {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-id", g.id);
+    tr.innerHTML = "<td class='l'><input class='gname' value='" + (g.name || "") + "' style='width:100%'></td>" +
+      "<td><input class='gtarget' type='number' min='0' step='1' value='" + (Number(g.target) || 0) + "' style='width:80px;text-align:right'></td>" +
+      "<td><button class='mini' data-delgrp='" + g.id + "'>删</button></td>";
+    tb.appendChild(tr);
+  });
+  if (!(S.groups || []).length) tb.innerHTML = "<tr><td colspan='3' class='muted'>还没有分组</td></tr>";
+  const sum = (S.groups || []).reduce((a, g) => a + Number(g.target || 0), 0);
+  const el = $("#grpSum");
+  if (el) el.textContent = "目标合计 " + sum + "%";
+  tb.onclick = (e) => {
+    const id = e.target.getAttribute && e.target.getAttribute("data-delgrp");
+    if (!id) return;
+    if (!confirm("删除该分组？已归到它的持仓会变成「卫星」")) return;
+    S.groups = S.groups.filter((g) => g.id !== id);
+    Object.keys(S.legs).forEach((k) => { if (S.legs[k] === id) S.legs[k] = SAT; });
+    saveLocal(); render(); renderGroups();
+  };
+}
+
 function renderStrategy() {
   const sig = SIGNAL;
   const card = $("#sigErp");
@@ -768,11 +820,21 @@ function renderStrategy() {
     $("#sigPct").textContent = "红利 " + b.eq + "%";
     $("#sigBond").textContent = "国债 " + (100 - b.eq) + "%";
     $("#sigBasis").textContent = "沪深300 PE " + fmt(sig.pe, 2) + " · 10Y国债 " + (sig.y10 ? fmt(sig.y10, 3) + "%" : "-") + " · " + (sig.src || "");
-    const total = lastTotal();
-    $("#sigRec").textContent = "本月建议：" + b.desc + "（按当前总资产 " + money(total) + "，红利约 " + money(total * b.eq / 100) + "，国债约 " + money(total * (100 - b.eq) / 100) + "）";
+    const total = stratBase();
+    $("#sigRec").textContent = "本月建议：" + b.desc + "（按策略金额 " + money(total) + "，红利约 " + money(total * b.eq / 100) + "，国债约 " + money(total * (100 - b.eq) / 100) + "）";
   }
   renderRebalance();
   renderRotInternal();
+}
+
+function stratBase() {
+  let satMv = 0;
+  holdings().forEach((h) => {
+    if (legOf(h.code) !== SAT) return;
+    const p = lastPrice(h.code);
+    if (p) satMv += p * h.shares;
+  });
+  return Math.max(0, lastTotal() - satMv);
 }
 
 function lastTotal() {
@@ -791,29 +853,37 @@ function legValues() {
 }
 
 function renderRebalance() {
-  const lv = legValues();
+  const lv = {};
+  let satMv = 0, totalMv = 0;
+  holdings().forEach((h) => {
+    const p = lastPrice(h.code);
+    const v = p ? p * h.shares : 0;
+    const g = legOf(h.code);
+    lv[g] = (lv[g] || 0) + v;
+    totalMv += v;
+    if (g === SAT) satMv += v;
+  });
   const total = lastTotal();
-  const cash = total - (lv.rot + lv.spy + lv.ndx + lv.other);
-  const t = S.settings.targets;
-  const rows = [
-    ["rot", "股债轮动", t.rot],
-    ["spy", "标普500", t.spy],
-    ["ndx", "纳指", t.ndx],
-  ];
+  const cash = total - totalMv;
+  const base = total - satMv;
+  const gs = S.groups || [];
+  const tsum = gs.reduce((a, g) => a + Number(g.target || 0), 0) || 1;
+
   const tb = $("#rbBody");
   tb.innerHTML = "";
-  rows.forEach(([k, name, tgt]) => {
-    const act = total ? (lv[k] / total) * 100 : 0;
+  gs.forEach((g) => {
+    const tgt = (Number(g.target || 0) / tsum) * 100;
+    const act = base ? ((lv[g.id] || 0) / base) * 100 : 0;
     const dev = act - tgt;
-    const amt = (tgt / 100) * total - lv[k];
-    const cls = Math.abs(dev) > 5 ? "dev warn" : "dev";
+    const amt = (tgt / 100) * base - (lv[g.id] || 0);
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td class='l'>" + name + "</td><td>" + tgt + "%</td><td>" + act.toFixed(1) + "%</td>" +
-      "<td class='" + cls + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>" +
-      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" + (Math.abs(amt) < total * 0.005 ? "不动" : (amt > 0 ? "买入 " : "卖出 ") + money(Math.abs(amt))) + "</td>";
+    tr.innerHTML = "<td class='l'>" + g.name + "</td><td>" + tgt.toFixed(1) + "%</td><td>" + act.toFixed(1) + "%</td>" +
+      "<td class='" + (Math.abs(dev) > 5 ? "dev warn" : "dev") + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>" +
+      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" + (Math.abs(amt) < base * 0.005 ? "不动" : (amt > 0 ? "买入 " : "卖出 ") + money(Math.abs(amt))) + "</td>";
     tb.appendChild(tr);
   });
-  $("#rbTotal").textContent = "总资产 " + money(total) + " · 现金 " + money(cash);
+  if (!gs.length) tb.innerHTML = "<tr><td colspan='5' class='muted'>还没有策略分组，去设置里加</td></tr>";
+  $("#rbTotal").textContent = "策略金额 " + money(base) + (satMv ? " · 卫星 " + money(satMv) : "") + " · 现金 " + money(cash);
 }
 
 function renderRotInternal() {
@@ -1236,13 +1306,25 @@ function bindForms() {
       : "格式：代码,名称,份额,成本价,日期";
   });
 
-  $("#targetForm").onsubmit = (e) => {
-    e.preventDefault();
-    S.settings.targets = { rot: Number($("#tgRot").value), spy: Number($("#tgSpy").value), ndx: Number($("#tgNdx").value) };
+  $("#btnAddGrp").onclick = () => {
+    S.groups.push({ id: "g" + Date.now().toString(36), name: "新分组", target: 0 });
+    saveLocal(); renderGroups();
+  };
+  $("#btnSaveGrp").onclick = () => {
+    const rows = Array.from(document.querySelectorAll("#grpBody tr[data-id]"));
+    S.groups = rows.map((r) => ({
+      id: r.getAttribute("data-id"),
+      name: r.querySelector(".gname").value.trim() || "未命名",
+      target: Number(r.querySelector(".gtarget").value) || 0
+    }));
+    saveLocal(); render(); renderGroups();
+    alert("已保存");
+  };
+  $("#btnSaveEtf").onclick = () => {
     S.settings.divCode = $("#tgDiv").value.trim() || "515080";
     S.settings.bondCode = $("#tgBond").value.trim() || "511010";
     saveLocal(); renderStrategy();
-    alert("已保存：轮动 " + S.settings.targets.rot + "% / 标普 " + S.settings.targets.spy + "% / 纳指 " + S.settings.targets.ndx + "%");
+    alert("已保存");
   };
 
   $$(".rbtn").forEach((b) => {
@@ -1366,9 +1448,6 @@ async function main() {
   $("#ghPath").value = c.path || "data.json";
   $("#autoSync").checked = !!c.autoSync;
   $("#dataRepoState").textContent = c.repo ? "已连接 " + c.repo : "未配置（数据存本机）";
-  $("#tgRot").value = S.settings.targets.rot;
-  $("#tgSpy").value = S.settings.targets.spy;
-  $("#tgNdx").value = S.settings.targets.ndx;
   $("#tgDiv").value = S.settings.divCode;
   $("#tgBond").value = S.settings.bondCode;
 
@@ -1411,6 +1490,9 @@ async function main() {
     rd.readAsText(f);
   };
 
+  ensureGroups();
+  $("#tLeg").innerHTML = groupOptions(SAT);
+  $("#plLeg").innerHTML = groupOptions(SAT);
   migrateMarket();
   render();
   await refreshPrices(false);
