@@ -541,6 +541,24 @@ function materializePlans() {
   return added;
 }
 
+function manualNAV() {
+  const code = prompt("代码", (S.plans[0] || {}).code || (S.trades[0] || {}).code || "");
+  if (!code) return;
+  const d = prompt("净值日期（YYYY-MM-DD）", today());
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return alert("日期格式不对");
+  const v = prompt("单位净值（基金 App 上的那个数）", "");
+  const px = Number(v);
+  if (!px) return alert("净值不对");
+  const arr = S.priceCache[code] = (S.priceCache[code] || []).filter((x) => x.date !== d);
+  const last = arr.filter((x) => x.date < d).slice(-1)[0] || arr[arr.length - 1];
+  arr.push({ date: d, px: px, tr: last && last.px ? last.tr * (px / last.px) : 1 });
+  arr.sort((a, b) => (a.date < b.date ? -1 : 1));
+  PRICES[code] = arr;
+  const n = materializePlans();
+  saveLocal(); render();
+  alert("已补 " + d + " 净值 " + px + (n ? "，生成 " + n + " 笔定投" : ""));
+}
+
 function renderPlans() {
   const tb = $("#planBody");
   if (!tb) return;
@@ -1046,6 +1064,7 @@ function bindForms() {
 
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
+  $("#btnPlanNav").onclick = manualNAV;
 
   $("#planForm").onsubmit = (e) => {
     e.preventDefault();
@@ -1276,6 +1295,17 @@ async function main() {
   if (location.search.indexOf("w=1") >= 0) {
     const d = document.getElementById("asof");
     if (d) d.textContent = "vw=" + window.innerWidth + " sw=" + document.documentElement.scrollWidth + " bw=" + document.body.scrollWidth;
+  }
+  if (location.search.indexOf("navtest") >= 0) {
+    let msg = "MOB:";
+    try {
+      const u = "https://fundmobapi.eastmoney.com/FundMNewApi/FundMNHisNetList?FCODE=021000&pageIndex=1&pageSize=5&deviceid=1&plat=Android&product=EFund&version=6.2.8";
+      const r = await fetch(u, { cache: "no-store" });
+      const j = await r.json();
+      msg += " status=" + r.status + " n=" + ((j && j.Datas) || []).length + " first=" + ((j && j.Datas && j.Datas[0] || {}).FSRQ);
+    } catch (e) { msg += " ERR " + e.message; }
+    const el = document.getElementById("planNote");
+    if (el) el.textContent = msg;
   }
   window.addEventListener("resize", () => renderAnalyze());
 }
