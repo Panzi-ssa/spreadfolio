@@ -22,8 +22,8 @@
   .kpi .v{font-size:19px;font-weight:700;margin-top:2px}
   .kpi .v.up{color:#ffe08a}.kpi .v.down{color:#b2f2bb}
   .sub{max-width:960px;margin:8px auto 0;font-size:11px;opacity:.82;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-  nav{display:flex;gap:6px;max-width:960px;margin:12px auto 0;padding:0 16px;overflow:auto}
-  nav button{flex:1;min-width:0;padding:9px 2px;border:0;border-radius:10px;background:rgba(255,255,255,.16);
+  nav{display:flex;flex-wrap:wrap;gap:6px;max-width:960px;margin:12px auto 0;padding:0 16px}
+  nav button{flex:1 1 28%;min-width:0;padding:9px 2px;border:0;border-radius:10px;background:rgba(255,255,255,.16);
              color:#fff;font-size:12px;font-weight:600;white-space:nowrap}
   nav button.on{background:#fff;color:var(--blue)}
   main{max-width:960px;margin:0 auto;padding:14px 16px 70px}
@@ -98,6 +98,7 @@
   <nav>
     <button class="tab on" data-p="pHold">持仓</button>
     <button class="tab" data-p="pTrade">交易</button>
+    <button class="tab" data-p="pPlan">定投</button>
     <button class="tab" data-p="pStrategy">策略</button>
     <button class="tab" data-p="pAnalyze">分析</button>
     <button class="tab" data-p="pSet">设置</button>
@@ -179,7 +180,36 @@
       </form>
     </div>
     <div class="card">
+      <h3>资金流水 <small id="flowSum"></small></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">日期</th><th class="l">账户</th><th>金额</th><th class="l">备注</th><th></th></tr></thead>
+        <tbody id="flowBody"></tbody></table></div>
+      <div class="hint">入金记正数、出金记负数。这里删掉记录，总投入和现金会同步变化。</div>
+    </div>
+
+    <div class="card">
+      <h3>CSV 导入对账单</h3>
+      <div class="row">
+        <button id="btnCsv">选择 CSV 文件</button>
+        <button id="btnTpl">下载模板</button>
+      </div>
+      <input type="file" id="fileCsv" accept=".csv,.txt" style="display:none">
+      <div id="csvPreview" class="hint"></div>
+    </div>
+    <div class="card">
+      <h3>交易记录 <small>倒序</small></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">日期</th><th class="l hide-s">账户</th><th class="l">代码</th><th class="l">名称</th>
+        <th>方向</th><th>份额</th><th>价格</th><th class="hide-s">费用</th><th></th></tr></thead>
+        <tbody id="tradeBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ========== 策略 ========== -->
+  <section id="pPlan" class="panel">
+    <div class="card">
       <h3>定投计划 <small id="planSum"></small></h3>
+      <div class="row" style="margin-bottom:8px"><button id="btnPlanSync">重新拉行情并补生成</button></div>
       <div class="hint" style="margin-bottom:8px">
         直接填<b>每次扣多少</b>，系统自动算每月大概投多少；多只标的各建一条，互不影响。
       </div>
@@ -209,33 +239,8 @@
       <div class="hint" id="planNote">生成的记录会写进「交易记录」，带「定投」标记，可单独删除（删了不会再生成）。</div>
     </div>
 
-    <div class="card">
-      <h3>资金流水 <small id="flowSum"></small></h3>
-      <div class="tablewrap"><table>
-        <thead><tr><th class="l">日期</th><th class="l">账户</th><th>金额</th><th class="l">备注</th><th></th></tr></thead>
-        <tbody id="flowBody"></tbody></table></div>
-      <div class="hint">入金记正数、出金记负数。这里删掉记录，总投入和现金会同步变化。</div>
-    </div>
-
-    <div class="card">
-      <h3>CSV 导入对账单</h3>
-      <div class="row">
-        <button id="btnCsv">选择 CSV 文件</button>
-        <button id="btnTpl">下载模板</button>
-      </div>
-      <input type="file" id="fileCsv" accept=".csv,.txt" style="display:none">
-      <div id="csvPreview" class="hint"></div>
-    </div>
-    <div class="card">
-      <h3>交易记录 <small>倒序</small></h3>
-      <div class="tablewrap"><table>
-        <thead><tr><th class="l">日期</th><th class="l hide-s">账户</th><th class="l">代码</th><th class="l">名称</th>
-        <th>方向</th><th>份额</th><th>价格</th><th class="hide-s">费用</th><th></th></tr></thead>
-        <tbody id="tradeBody"></tbody></table></div>
-    </div>
   </section>
 
-  <!-- ========== 策略 ========== -->
   <section id="pStrategy" class="panel">
     <div class="card">
       <h3>股债利差信号 <small id="sigDate">-</small></h3>
@@ -342,10 +347,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21e</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21g</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121e"></script>
+<script src="app.js?v=20261121g"></script>
 </body>
 </html>

@@ -353,6 +353,7 @@ async function loadSignal(force) {
 
 // ---------- 渲染：持仓 ----------
 function render() {
+  if (Object.keys(PRICES).length) { try { materializePlans(); } catch (e) { console.error(e); } }
   SERIES = replay();
   const rows = SERIES;
   const last = rows.length ? rows[rows.length - 1] : { value: 0, mv: 0, cash: 0, date: "-", cf: 0 };
@@ -545,6 +546,13 @@ function renderPlans() {
   if (!tb) return;
   tb.innerHTML = "";
   (S.plans || []).forEach((plan) => {
+    const arr0 = PRICES[plan.code];
+    const lastNav = arr0 && arr0.length ? arr0[arr0.length - 1].date : null;
+    let why = "0 笔";
+    if (!arr0 || !arr0.length) why = "<span class='dev warn'>净值未加载</span>";
+    else if (!periodAmount(plan)) why = "<span class='dev warn'>每次金额为 0</span>";
+    else if (plan.start && lastNav && plan.start > lastNav) why = "<span class='dev warn'>开始日晚于最新净值</span>";
+    else why = "0 笔（待补）";
     const doneT = S.trades.filter((t) => t.planId === plan.id);
     const done = doneT.length;
     const lastDone = done ? doneT.map((x) => x.date).sort().slice(-1)[0] : null;
@@ -553,7 +561,7 @@ function renderPlans() {
       "<td>" + (plan.freq === "daily" ? "每日" : plan.freq === "weekly" ? "每周" : "每月") + "</td>" +
       "<td><b>" + money(periodAmount(plan)) + "</b></td>" +
       "<td>" + money(periodAmount(plan) * perDiv(plan.freq)) + "</td>" +
-      "<td>" + done + " 笔" + (lastDone ? " <span class='muted'>至 " + lastDone.slice(5) + "</span>" : "") + "</td>" +
+      "<td>" + (done ? done + " 笔 <span class='muted'>至 " + lastDone.slice(5) + "</span>" : why) + "</td>" +
       "<td><button class='mini' data-delplan='" + plan.id + "'>删</button></td>";
     tb.appendChild(tr);
   });
@@ -1037,6 +1045,8 @@ function bindForms() {
   $("#posForm").onsubmit = (e) => { e.preventDefault(); addPosition(); };
 
   $("#plStart").value = today();
+  $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
+
   $("#planForm").onsubmit = (e) => {
     e.preventDefault();
     const code = $("#plCode").value.trim();
@@ -1256,8 +1266,8 @@ async function main() {
   await loadSignal(false);
   renderStrategy();
   const hashTab = location.hash.replace("#", "");
-  if (hashTab && ["hold","trade","strategy","analyze","set"].indexOf(hashTab) >= 0) {
-    const map = {hold:"pHold", trade:"pTrade", strategy:"pStrategy", analyze:"pAnalyze", set:"pSet"};
+  if (hashTab && ["hold","trade","plan","strategy","analyze","set"].indexOf(hashTab) >= 0) {
+    const map = {hold:"pHold", trade:"pTrade", plan:"pPlan", strategy:"pStrategy", analyze:"pAnalyze", set:"pSet"};
     const b = $('.tab[data-p="' + map[hashTab] + '"]'); if (b) b.click();
   }
   if (location.hash === "#trade") { const b = $('.tab[data-p="pTrade"]'); if (b) b.click(); }
