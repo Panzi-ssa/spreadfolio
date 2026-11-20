@@ -32,13 +32,12 @@ function fmt(x, d) {
 }
 function fmtPnl(x) {
   if (x === null || x === undefined || isNaN(x)) return "-";
-  const d = Math.abs(x) < 1000 ? 2 : 0;
-  return (x >= 0 ? "+" : "") + fmt(x, d);
+  return (x >= 0 ? "+" : "") + fmt(x, 2);
 }
 
 function pct(x, d) { return (x * 100).toFixed(d === undefined ? 2 : d) + "%"; }
 function days(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
-function money(x) { return "¥" + fmt(x, 0); }
+function money(x) { return "¥" + fmt(x, 2); }
 
 // ---------- 默认设置 ----------
 function ensureSettings() {
@@ -363,9 +362,9 @@ function render() {
   const dayPnl = prev ? last.value - prev.value - (last.cf || 0) : 0;
 
   $("#kpiValue").textContent = money(last.value);
-  $("#kpiPnl").textContent = (totalPnl >= 0 ? "+" : "") + fmt(totalPnl, 0);
+  $("#kpiPnl").textContent = (totalPnl >= 0 ? "+" : "") + fmt(totalPnl, 2);
   $("#kpiPnl").className = "v " + (totalPnl >= 0 ? "up" : "down");
-  $("#kpiDay").textContent = (dayPnl >= 0 ? "+" : "") + fmt(dayPnl, 0);
+  $("#kpiDay").textContent = (dayPnl >= 0 ? "+" : "") + fmt(dayPnl, 2);
   $("#kpiDay").className = "v " + (dayPnl >= 0 ? "up" : "down");
   $("#kpiInvest").textContent = money(invested);
   $("#asof").textContent = last.date;
@@ -403,8 +402,8 @@ function renderHoldings() {
       "<td class='l hide-s'><select class='legsel' data-code='" + h.code + "'>" +
       ["rot", "spy", "ndx", "other"].map((k) => "<option value='" + k + "'" + (k === leg ? " selected" : "") + ">" + LEG_NAME[k] + "</option>").join("") +
       "</select></td>" +
-      "<td>" + fmt(h.shares, 0) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
-      "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 0) : "-") + "</td>" +
+      "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
+      "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
       "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>" +
       "<td class='hide-s'>" + (mv && total ? pct(mv / total) : "-") + "</td>";
     tb.appendChild(tr);
@@ -450,7 +449,7 @@ function renderTrades() {
     tr.innerHTML = "<td>" + t.date + "</td><td class='hide-s'>" + (t.accountName || t.account || "") + "</td>" +
       "<td>" + t.code + "</td><td class='l'>" + (t.name || "") + "</td>" +
       "<td class='" + (t.side === "buy" ? "up" : "down") + "'>" + (t.side === "buy" ? "买入" : "卖出") + "</td>" +
-      "<td>" + fmt(t.shares, 0) + "</td><td>" + fmt(t.price, 4) + "</td>" +
+      "<td>" + fmt(t.shares, 2) + "</td><td>" + fmt(t.price, 4) + "</td>" +
       "<td class='hide-s'>" + fmt(t.fee || 0, 2) + "</td><td><button class='mini' data-del='" + t.id + "'>删</button></td>";
     tb.appendChild(tr);
   });
@@ -619,7 +618,7 @@ function renderFlows() {
     const amt = Number(f.amount);
     const tr = document.createElement("tr");
     tr.innerHTML = "<td>" + f.date + "</td><td class='l'>" + (f.account || "") + "</td>" +
-      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" + (amt >= 0 ? "+" : "") + fmt(amt, 0) + "</td>" +
+      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" + (amt >= 0 ? "+" : "") + fmt(amt, 2) + "</td>" +
       "<td class='l'>" + (f.note || "") + "</td>" +
       "<td><button class='mini' data-delflow='" + f.id + "'>删</button></td>";
     tb.appendChild(tr);
@@ -720,7 +719,7 @@ function renderRotInternal() {
     const act = sum ? (v / sum) * 100 : 0;
     const dev = act - tgt;
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td class='l'>" + name + "</td><td>" + fmt(v, 0) + "</td><td>" + tgt + "%</td>" +
+    tr.innerHTML = "<td class='l'>" + name + "</td><td>" + fmt(v, 2) + "</td><td>" + tgt + "%</td>" +
       "<td class='" + (Math.abs(dev) > 5 ? "dev warn" : "dev") + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>";
     tb.appendChild(tr);
   });
@@ -932,7 +931,7 @@ function previewPos() {
       const val = shares * px;
       const pnl = val - cost;
       parts.push("市值 " + money(val));
-      parts.push("盈亏 " + (pnl >= 0 ? "+" : "") + fmt(pnl, 0) + "（" + pct(pnl / cost) + "）");
+      parts.push("盈亏 " + (pnl >= 0 ? "+" : "") + fmt(pnl, 2) + "（" + pct(pnl / cost) + "）");
     }
   }
   $("#pPreview").textContent = parts.length ? parts.join(" · ") : "填入代码和成本，其余自动算";
