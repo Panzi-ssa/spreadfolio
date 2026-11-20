@@ -302,10 +302,10 @@
     <div class="card">
       <h3>轮动组内部</h3>
       <div class="tablewrap"><table>
-        <thead><tr><th class="l">标的</th><th>持有市值</th><th>目标</th><th>偏离</th></tr></thead>
+        <thead><tr><th class="l">标的</th><th>持有市值</th><th>目标</th><th>偏离</th><th>建议操作</th></tr></thead>
         <tbody id="rotBody"></tbody>
       </table></div>
-      <div class="hint">轮动组 = 红利 ETF + 国债 ETF，目标比例由上面的利差信号决定。</div>
+      <div class="hint" id="rotNote">轮动组 = 红利 ETF + 国债 ETF，目标比例由上面的利差信号决定。</div>
     </div>
   </section>
 
@@ -381,10 +381,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21u</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21v</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121u"></script>
+<script src="app.js?v=20261121v"></script>
 </body>
 </html>

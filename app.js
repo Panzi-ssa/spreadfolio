@@ -961,12 +961,21 @@ function renderRotInternal() {
   rows.forEach(([name, v, tgt]) => {
     const act = sum ? (v / sum) * 100 : 0;
     const dev = act - tgt;
+    const amt = (tgt / 100) * sum - v;
     const tr = document.createElement("tr");
     tr.innerHTML = "<td class='l'>" + name + "</td><td>" + fmt(v, 2) + "</td><td>" + tgt + "%</td>" +
-      "<td class='" + (Math.abs(dev) > 5 ? "dev warn" : "dev") + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>";
+      "<td class='" + (Math.abs(dev) > 5 ? "dev warn" : "dev") + "'>" + (dev >= 0 ? "+" : "") + dev.toFixed(1) + "pp</td>" +
+      "<td class='" + (amt >= 0 ? "down" : "up") + "'>" +
+      (Math.abs(amt) < Math.max(1, sum * 0.005) ? "不动" : (amt > 0 ? "买入 " : "卖出 ") + money(Math.abs(amt))) + "</td>";
     tb.appendChild(tr);
   });
-  if (!sum) tb.innerHTML = "<tr><td colspan='4' class='muted'>轮动组还没有持仓</td></tr>";
+  if (!sum) tb.innerHTML = "<tr><td colspan='5' class='muted'>轮动组还没有持仓</td></tr>";
+  const note = $("#rotNote");
+  if (note) {
+    note.textContent = sum
+      ? "轮动组共 " + money(sum) + "，目标 红利 " + tgtDiv + "% / 国债 " + (100 - tgtDiv) + "%（由利差信号决定）。"
+      : "轮动组 = 红利 ETF + 国债 ETF，目标比例由上面的利差信号决定。";
+  }
 }
 
 // ---------- 渲染：分析 ----------
