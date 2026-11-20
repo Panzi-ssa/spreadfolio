@@ -18,6 +18,7 @@ let SERIES = null;
 let RANGE = "ALL";
 let SIGNAL = null;
 let CSV_ROWS = null;
+const NAME_CACHE = {};
 
 const LS_KEY = "pf_state_v1";
 const LS_CFG = "pf_cfg_v1";
@@ -98,6 +99,7 @@ async function fetchFundNav(code) {
   await jsonpLoad(u);
   const nav = window.Data_netWorthTrend || [];
   const ac = window.Data_ACWorthTrend || [];
+  if (window.fS_name) NAME_CACHE[code] = String(window.fS_name).replace(/[A-Z]\(.*\)$/, '');
   window.Data_netWorthTrend = null; window.Data_ACWorthTrend = null;
   if (!nav.length) throw new Error("no nav");
   const acMap = {};
@@ -747,6 +749,60 @@ function templateCSV() {
   a.download = "对账单模板.csv"; a.click();
 }
 
+// ---------- 单只添加持仓 ----------
+function pvNum(sel) { const v = Number(String($(sel).value).replace(/[,\s]/g, "")); return isFinite(v) ? v : 0; }
+
+function previewPos() {
+  const code = $("#pCode").value.trim();
+  const sh = pvNum("#pShares");
+  const mv = pvNum("#pMv");
+  const cost = pvNum("#pCost");
+  const px = code ? lastPrice(code) : null;
+  let shares = sh;
+  if (!shares && mv && px) shares = mv / px;
+  const parts = [];
+  if (code && NAME_CACHE[code] && !$("#pName").value) $("#pName").value = NAME_CACHE[code];
+  if (px) parts.push("现价 " + fmt(px, 4));
+  else if (code) parts.push("现价待拉取");
+  if (shares && cost) {
+    const cp = cost / shares;
+    parts.push("成本价 " + fmt(cp, 4));
+    if (px) {
+      const val = shares * px;
+      const pnl = val - cost;
+      parts.push("市值 " + money(val));
+      parts.push("盈亏 " + (pnl >= 0 ? "+" : "") + fmt(pnl, 0) + "（" + pct(pnl / cost) + "）");
+    }
+  }
+  $("#pPreview").textContent = parts.length ? parts.join(" · ") : "填入代码和成本，其余自动算";
+}
+
+async function addPosition() {
+  const code = $("#pCode").value.trim();
+  let shares = pvNum("#pShares");
+  const mv = pvNum("#pMv");
+  const cost = pvNum("#pCost");
+  if (!code) return alert("填一下代码");
+  if (!cost) return alert("填一下持仓成本（总共投了多少钱）");
+  if (!shares && mv) {
+    const px = lastPrice(code);
+    if (!px) return alert("还没拉到现价，请稍等或直接填份额");
+    shares = mv / px;
+  }
+  if (!shares) return alert("填一下份额（或市值）");
+  const price = cost / shares;
+  if (!confirm("确认添加 " + code + "\n份额 " + fmt(shares, 2) + "\n成本价 " + fmt(price, 4) + "\n总成本 " + money(cost))) return;
+  const acc = (S.accounts[0] || {}).id || "A";
+  const date = $("#pDate").value || today();
+  const name = $("#pName").value.trim() || NAME_CACHE[code] || code;
+  S.flows.push({ id: uid(), date: date, account: acc, amount: Number(cost.toFixed(2)), note: "期初持仓 " + code });
+  S.trades.push({ id: uid(), date: date, account: acc, code: code, name: name, side: "buy", shares: Number(shares.toFixed(4)), price: Number(price.toFixed(6)), fee: 0, init: true });
+  if (!S.legs[code]) S.legs[code] = "other";
+  saveLocal(); render(); refreshPrices();
+  $("#pCode").value = ""; $("#pName").value = ""; $("#pShares").value = ""; $("#pMv").value = ""; $("#pCost").value = "";
+  $("#pPreview").textContent = "已添加 " + code;
+}
+
 // ---------- 导入现有持仓 ----------
 function parseInitLines(text, defDate) {
   const out = [];
@@ -832,6 +888,18 @@ function bindForms() {
     S.flows.push(f); saveLocal(); render();
     $("#fAmt").value = "";
   };
+
+  $("#pDate").value = today();
+  ["#pCode", "#pShares", "#pMv", "#pCost"].forEach((sel) => {
+    $(sel).addEventListener("input", previewPos);
+  });
+  $("#pCode").addEventListener("blur", async () => {
+    const code = $("#pCode").value.trim();
+    if (!code) return;
+    if (!PRICES[code]) await loadPrices([code], false);
+    previewPos();
+  });
+  $("#posForm").onsubmit = (e) => { e.preventDefault(); addPosition(); };
 
   $("#btnInit").onclick = importInit;
   $("#initDate").value = today();

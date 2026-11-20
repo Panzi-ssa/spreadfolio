@@ -145,19 +145,27 @@
       </form>
     </div>
     <div class="card">
-      <h3>导入现有持仓 <small>没有历史交易记录时用</small></h3>
-      <div class="hint" style="margin-bottom:8px">
-        一行一只：<code>代码,名称,份额,摊薄成本价,建仓日期</code><br>
-        成本价填基金 App 的<b>摊薄成本</b>（含分红、含手续费），不是「买入均价」。<br>
-        逗号、空格、制表符都行（可直接从 Excel 粘贴）。会同时生成一笔等额入金，保证「累计投入」正确。
-      </div>
-      <textarea id="initText" class="field" rows="4"
-        placeholder="515080,中证红利ETF,63700,1.568,2026-11-20&#10;511010,国债ETF,200,141.41,2026-11-20"></textarea>
-      <div class="row">
-        <input type="date" id="initDate" style="flex:1" title="没填日期时用这个">
-        <button id="btnInit" style="flex:0 0 110px">导入</button>
-      </div>
-      <div class="hint" id="initPreview">日期列留空 → 用左边这个日期</div>
+      <h3>添加持仓 <small>填成本 + 份额或市值即可</small></h3>
+      <form id="posForm">
+        <div><label>代码</label><input id="pCode" placeholder="515080"></div>
+        <div><label>名称（自动）</label><input id="pName" placeholder="自动获取"></div>
+        <div><label>持有份额</label><input id="pShares" type="number" step="0.01" placeholder="63700"></div>
+        <div><label>当前市值（元，可替代份额）</label><input id="pMv" type="number" step="0.01" placeholder="101361"></div>
+        <div><label>持仓成本（总额，元）</label><input id="pCost" type="number" step="0.01" placeholder="99882"></div>
+        <div><label>日期</label><input id="pDate" type="date"></div>
+        <div class="full hint" id="pPreview">填入代码和成本，其余自动算</div>
+        <button class="primary" type="submit">添加这只持仓</button>
+      </form>
+      <details style="margin-top:12px">
+        <summary style="font-size:13px;color:#41506b;cursor:pointer">批量粘贴（多只一起导）</summary>
+        <div class="hint" style="margin:8px 0">一行一只：<code>代码,名称,份额,摊薄成本价,日期</code>，逗号/空格/制表符均可。</div>
+        <textarea id="initText" class="field" rows="4" placeholder="515080,中证红利ETF,63700,1.568,2026-11-20"></textarea>
+        <div class="row">
+          <input type="date" id="initDate" style="flex:1">
+          <button id="btnInit" type="button" style="flex:0 0 110px">批量导入</button>
+        </div>
+        <div class="hint" id="initPreview"></div>
+      </details>
     </div>
 
     <div class="card">
