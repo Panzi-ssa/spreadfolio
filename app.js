@@ -1151,10 +1151,12 @@ function previewPos() {
   const code = $("#pCode").value.trim();
   const sh = pvNum("#pShares");
   const mv = pvNum("#pMv");
-  const cost = pvNum("#pCost");
+  const costRaw = pvNum("#pCost");
+  const mkt = $("#pMarket").value;
   const px = code ? lastPrice(code) : null;
   let shares = sh;
   if (!shares && mv && px) shares = mv / px;
+  const cost = mkt === "场内" ? costRaw * shares : costRaw;   // 场内填单价，场外填总额
   const parts = [];
   if (code && NAME_CACHE[code] && !$("#pName").value) $("#pName").value = NAME_CACHE[code];
   if (px) parts.push("现价 " + fmt(px, 4));
@@ -1176,16 +1178,18 @@ async function addPosition() {
   const code = $("#pCode").value.trim();
   let shares = pvNum("#pShares");
   const mv = pvNum("#pMv");
-  const cost = pvNum("#pCost");
+  const costRaw = pvNum("#pCost");
+  const mkt = $("#pMarket").value;
   if (!code) return alert("填一下代码");
-  if (!cost) return alert("填一下持仓成本（总共投了多少钱）");
+  if (!costRaw) return alert(mkt === "场内" ? "填一下成本价（单股）" : "填一下持仓成本总额");
   if (!shares && mv) {
     const px = lastPrice(code);
     if (!px) return alert("还没拉到现价，请稍等或直接填份额");
     shares = mv / px;
   }
   if (!shares) return alert("填一下份额（或市值）");
-  const price = cost / shares;
+  const price = mkt === "场内" ? costRaw : costRaw / shares;
+  const cost = price * shares;
   if (!confirm("确认添加 " + code + "\n份额 " + fmt(shares, 2) + "\n成本价 " + fmt(price, 4) + "\n总成本 " + money(cost))) return;
   const acc = (S.accounts[0] || {}).id || "A";
   const date = $("#pDate").value || today();
@@ -1285,6 +1289,15 @@ function bindForms() {
   };
 
   $("#pDate").value = today();
+  const syncCostLabel = () => {
+    const mkt = $("#pMarket").value;
+    $("#pCostLabel").textContent = mkt === "场内" ? "成本价（单股，元）" : "持仓成本（总额，元）";
+    $("#pCost").placeholder = mkt === "场内" ? "114.0443" : "99882";
+    previewPos();
+  };
+  $("#pMarket").addEventListener("change", syncCostLabel);
+  syncCostLabel();
+
   ["#pCode", "#pShares", "#pMv", "#pCost"].forEach((sel) => {
     $(sel).addEventListener("input", previewPos);
   });
@@ -1543,8 +1556,8 @@ async function main() {
   };
 
   ensureGroups();
-  $("#tLeg").innerHTML = groupOptions(SAT);
-  $("#plLeg").innerHTML = groupOptions(SAT);
+  $("#tLeg").innerHTML = groupOptions((S.groups[0] || {}).id || SAT);
+  $("#plLeg").innerHTML = groupOptions((S.groups[0] || {}).id || SAT);
   migrateMarket();
   render();
   await refreshPrices(false);
