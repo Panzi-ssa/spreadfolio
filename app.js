@@ -131,26 +131,45 @@ async function fetchFundNav(code) {
   return out;
 }
 
-async function fetchKline(code) {
+async function fetchKline(code, fqt) {
+  const q = (fqt === undefined) ? 1 : fqt;
   for (const mk of ["1", "0"]) {
     const cb = "cbk_" + code + "_" + Math.random().toString(36).slice(2, 6);
     let payload = null;
     window[cb] = (js) => { payload = js; };
     try {
       const u = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" + mk + "." + code +
-        "&fields1=f1&fields2=f51,f53&klt=101&fqt=1&beg=0&end=20500101&cb=" + cb;
+        "&fields1=f1&fields2=f51,f53&klt=101&fqt=" + q + "&beg=0&end=20500101&cb=" + cb;
       await jsonpLoad(u);
       if (payload && payload.data && payload.data.klines && payload.data.klines.length) {
         delete window[cb];
         return payload.data.klines.map((k) => {
-          const p = k.split(",");
-          return { date: p[0], px: Number(p[1]), tr: Number(p[1]) };
+          const arr = k.split(",");
+          return { date: arr[0], px: Number(arr[1]), tr: Number(arr[1]) };
         });
       }
-    } catch (e) { /* next */ }
+    } catch (e) { /* try next */ }
     delete window[cb];
   }
   return [];
+}
+
+// 交易所价格(px) + 前复权(tr)：tr/px 的比值变化用来识别分红
+async function fetchKlinePair(code) {
+  const raw = await fetchKline(code, 0);
+  if (!raw.length) return [];
+  let adj = [];
+  try { adj = await fetchKline(code, 1); } catch (e) { adj = []; }
+  const m = {};
+  adj.forEach((a) => { m[a.date] = a.tr; });
+  return raw.map((r) => ({ date: r.date, px: r.px, tr: m[r.date] || r.px }));
+}
+
+
+function marketForCode(code) {
+  const ts = S.trades.filter((x) => x.code === code);
+  for (let i = ts.length - 1; i >= 0; i--) if (ts[i].market) return ts[i].market;
+  return "";
 }
 
 async function loadPrices(codes, force) {
@@ -160,8 +179,15 @@ async function loadPrices(codes, force) {
     const fresh = cached && cached.length && days(cached[cached.length - 1].date, today()) <= 1;
     if (cached && fresh && !force) { out[code] = cached; continue; }
     let arr = [];
-    try { arr = await fetchFundNav(code); } catch (e) { arr = []; }
-    if (!arr.length) { try { arr = await fetchKline(code); } catch (e) { arr = []; } }
+    const mkt = marketForCode(code);
+    if (mkt === "场内") {
+      // 场内：用交易所收盘价，和券商显示一致
+      try { arr = await fetchKlinePair(code); } catch (e) { arr = []; }
+      if (!arr.length) { try { arr = await fetchFundNav(code); } catch (e) { arr = []; } }
+    } else {
+      try { arr = await fetchFundNav(code); } catch (e) { arr = []; }
+      if (!arr.length) { try { arr = await fetchKlinePair(code); } catch (e) { arr = []; } }
+    }
     if (arr.length) { out[code] = arr; S.priceCache[code] = arr; }
     else if (cached) out[code] = cached;
   }
