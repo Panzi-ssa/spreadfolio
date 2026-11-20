@@ -386,19 +386,63 @@ function legOf(code) {
 
 const LEG_NAME = { rot: "股债轮动", spy: "标普500", ndx: "纳指", other: "其他" };
 
+function marketOf(code) {
+  return /^(5|15|16|11|12)/.test(String(code)) ? "场内" : "场外";
+}
+
+function accountOf(code) {
+  const ts = S.trades.filter((x) => x.code === code);
+  const last = ts[ts.length - 1];
+  if (!last) return "";
+  const acc = (S.accounts || []).find((a) => a.id === last.account);
+  return acc ? acc.name : (last.account || "");
+}
+
 function renderHoldings() {
   const hs = holdings();
   const tb = $("#holdBody");
-  tb.innerHTML = "";
+  if (!tb) return;
+  if (!window.HOLD_FILTER) window.HOLD_FILTER = { type: "", account: "", leg: "" };
+  const F = window.HOLD_FILTER;
+
+  // 下拉选项
+  const accSel = $("#holdAccount"), legSel = $("#holdLeg"), typeSel = $("#holdType");
+  if (accSel) {
+    const accs = [];
+    hs.forEach((h) => { const a = accountOf(h.code); if (a && accs.indexOf(a) < 0) accs.push(a); });
+    accSel.innerHTML = "<option value=''>全部账户</option>" + accs.map((a) => "<option value='" + a + "'>" + a + "</option>").join("");
+    accSel.value = accs.indexOf(F.account) >= 0 ? F.account : "";
+    F.account = accSel.value;
+  }
+  if (legSel) {
+    const legs = [];
+    hs.forEach((h) => { const l = legOf(h.code); if (legs.indexOf(l) < 0) legs.push(l); });
+    legSel.innerHTML = "<option value=''>全部腿</option>" + legs.map((l) => "<option value='" + l + "'>" + (LEG_NAME[l] || l) + "</option>").join("");
+    legSel.value = legs.indexOf(F.leg) >= 0 ? F.leg : "";
+    F.leg = legSel.value;
+  }
+  if (typeSel) typeSel.value = F.type;
+
+  const list = hs.filter((h) => {
+    if (F.type && marketOf(h.code) !== F.type) return false;
+    if (F.account && accountOf(h.code) !== F.account) return false;
+    if (F.leg && legOf(h.code) !== F.leg) return false;
+    return true;
+  });
+
   let total = 0;
-  hs.forEach((h) => { const p = lastPrice(h.code); if (p) total += p * h.shares; });
-  hs.forEach((h) => {
+  list.forEach((h) => { const p = lastPrice(h.code); if (p) total += p * h.shares; });
+
+  tb.innerHTML = "";
+  list.forEach((h) => {
     const px = lastPrice(h.code);
     const mv = px ? px * h.shares : 0;
     const pnl = px ? mv - h.cost : null;
     const leg = legOf(h.code);
+    const mk = marketOf(h.code);
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name + "</td>" +
+    tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name +
+      " <span class='muted' style='font-size:11px'>" + mk + "</span></td>" +
       "<td class='l hide-s'><select class='legsel' data-code='" + h.code + "'>" +
       ["rot", "spy", "ndx", "other"].map((k) => "<option value='" + k + "'" + (k === leg ? " selected" : "") + ">" + LEG_NAME[k] + "</option>").join("") +
       "</select></td>" +
@@ -408,7 +452,8 @@ function renderHoldings() {
       "<td class='hide-s'>" + (mv && total ? pct(mv / total) : "-") + "</td>";
     tb.appendChild(tr);
   });
-  if (!hs.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>还没有持仓，去「交易」里记一笔</td></tr>";
+  if (!list.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>" + (hs.length ? "没有符合筛选的持仓" : "还没有持仓，去「交易」里记一笔") + "</td></tr>";
+
   tb.onchange = (e) => {
     const sel = e.target;
     if (sel.classList.contains("legsel")) {
@@ -416,9 +461,13 @@ function renderHoldings() {
       saveLocal(); renderStrategy();
     }
   };
+  if (typeSel) typeSel.onchange = () => { F.type = typeSel.value; renderHoldings(); };
+  if (accSel) accSel.onchange = () => { F.account = accSel.value; renderHoldings(); };
+  if (legSel) legSel.onchange = () => { F.leg = legSel.value; renderHoldings(); };
+
   const lastRow = SERIES && SERIES.length ? SERIES[SERIES.length - 1] : null;
-  const cashNow = lastRow ? lastRow.cash : 0;
-  $("#cashNote").textContent = "现金 " + money(cashNow);
+  $("#cashNote").textContent = "现金 " + money(lastRow ? lastRow.cash : 0) +
+    (list.length !== hs.length ? " · 显示 " + list.length + "/" + hs.length : "");
 }
 
 function renderAttribution() {
