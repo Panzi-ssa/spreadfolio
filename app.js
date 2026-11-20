@@ -551,7 +551,7 @@ function renderPlans() {
     let why = "0 笔";
     if (!arr0 || !arr0.length) why = "<span class='dev warn'>净值未加载</span>";
     else if (!periodAmount(plan)) why = "<span class='dev warn'>每次金额为 0</span>";
-    else if (plan.start && lastNav && plan.start > lastNav) why = "<span class='dev warn'>开始日晚于最新净值</span>";
+    else if (plan.start && lastNav && plan.start > lastNav) why = "<span class='dev' style='color:#8a94a6'>待净值（最新 " + lastNav.slice(5) + "）</span>";
     else why = "0 笔（待补）";
     const doneT = S.trades.filter((t) => t.planId === plan.id);
     const done = doneT.length;
