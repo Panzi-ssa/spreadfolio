@@ -823,11 +823,41 @@ function saveCfg(c) { localStorage.setItem(LS_CFG, JSON.stringify(c)); }
 async function ghRead(c, quiet) {
   const u = "https://api.github.com/repos/" + c.repo + "/contents/" + (c.path || "data.json");
   const r = await fetch(u, { headers: { Authorization: "token " + c.token, Accept: "application/vnd.github+json" } });
-  if (!r.ok) { if (!quiet) alert("\u8bfb\u53d6\u5931\u8d25\uff1a" + r.status + "\uff08\u79c1\u6709\u4ed3\u5e93\u9700\u8981\u6709\u6548 token\uff09"); return null; }
+  if (!r.ok) { if (!quiet) { alert(r.status === 404
+      ? "\u8bfb\u53d6\u5931\u8d25\uff1a404\n\n\u5e38\u89c1\u539f\u56e0\uff1a\n1) \u4ed3\u5e93\u540d\u5199\u9519\u6216\u4ed3\u5e93\u4e0d\u5b58\u5728\n2) token \u6ca1\u52fe\u9009\u8fd9\u4e2a\u4ed3\u5e93\uff08fine-grained \u5fc5\u987b\u624b\u52a8\u9009\uff09\n3) \u6587\u4ef6\u4e0d\u5b58\u5728\uff0c\u6bd4\u5982\u5b9e\u9645\u53eb data.json.txt\n\n\u70b9\u300c\u6d4b\u8bd5\u8fde\u63a5\u300d\u53ef\u5b9a\u4f4d\u662f\u54ea\u4e00\u6b65\u3002"
+      : "\u8bfb\u53d6\u5931\u8d25\uff1a" + r.status); } return null; }
   const j = await r.json();
   const txt = decodeURIComponent(escape(atob(j.content.replace(/\n/g, ""))));
   const d = JSON.parse(txt);
   return d;
+}
+
+async function testConn() {
+  const c = cfg();
+  if (!c.repo || !c.token) return alert("先填仓库和 token");
+  const H = { Authorization: "token " + c.token, Accept: "application/vnd.github+json" };
+  const out = [];
+  let r = await fetch("https://api.github.com/user", { headers: H });
+  if (r.ok) { const j = await r.json(); out.push("✅ token 有效，属于 " + j.login); }
+  else { out.push("❌ token 无效/过期（/user " + r.status + "）"); }
+  r = await fetch("https://api.github.com/repos/" + c.repo, { headers: H });
+  if (r.ok) {
+    const j = await r.json();
+    out.push("✅ 仓库可访问：" + j.full_name + (j.private ? "（私有）" : "（公开）"));
+  } else {
+    out.push("❌ 仓库访问失败 " + r.status + "：" + (r.status === 404 ? "仓库名不对，或 token 没勾选这个仓库" : "权限不足"));
+  }
+  const path = c.path || "data.json";
+  r = await fetch("https://api.github.com/repos/" + c.repo + "/contents/" + path, { headers: H });
+  if (r.ok) {
+    const j = await r.json();
+    out.push("✅ 文件存在：" + j.path + "（" + j.size + " 字节）");
+  } else if (r.status === 404) {
+    out.push("❌ 文件不存在：" + path + "（Windows 常把名字存成 data.json.txt，去仓库网页确认）");
+  } else {
+    out.push("❌ 文件读取失败 " + r.status);
+  }
+  alert(out.join("\n"));
 }
 
 async function ghLoad() {
@@ -882,6 +912,7 @@ async function main() {
     $("#dataRepoState").textContent = nc.repo ? "已连接 " + nc.repo : "未配置（数据存本机）";
     alert("已保存到本机");
   };
+  $("#btnTest").onclick = testConn;
   $("#ghLoad").onclick = ghLoad;
   $("#ghSave").onclick = ghSave;
   $("#btnRefresh").onclick = () => refreshPrices(true);
