@@ -48,6 +48,12 @@ async function loadState() {
   const local = localStorage.getItem(LS_KEY);
   if (local) { try { S = JSON.parse(local); } catch (e) { S = null; } }
   if (!S) {
+    const c0 = cfg();
+    if (c0.repo && c0.token) {
+      try { const d = await ghRead(c0, true); if (d) S = d; } catch (e) { /* 忽略，走本地 */ }
+    }
+  }
+  if (!S) {
     try { const r = await fetch("data.json?t=" + Date.now()); S = await r.json(); }
     catch (e) { S = { version: 1, accounts: [], cash: {}, flows: [], trades: [], priceCache: {} }; }
   }
@@ -58,7 +64,20 @@ async function loadState() {
   S.priceCache = S.priceCache || {};
   ensureSettings();
 }
-function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+let syncTimer = null;
+function saveLocal() {
+  localStorage.setItem(LS_KEY, JSON.stringify(S));
+  const c = cfg();
+  if (c.autoSync && c.repo && c.token) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+      ghSave(true).then(() => {
+        const el = document.getElementById("syncNote");
+        if (el) el.textContent = "已自动同步 " + new Date().toLocaleTimeString("zh-CN");
+      }).catch(() => {});
+    }, 1500);
+  }
+}
 
 // ---------- 行情 ----------
 function jsonpLoad(url, timeout) {
@@ -801,23 +820,28 @@ async function refreshPrices(force) {
 function cfg() { try { return JSON.parse(localStorage.getItem(LS_CFG) || "{}"); } catch (e) { return {}; } }
 function saveCfg(c) { localStorage.setItem(LS_CFG, JSON.stringify(c)); }
 
-async function ghLoad() {
-  const c = cfg();
-  if (!c.repo || !c.token) return alert("先在「设置」里填仓库和 token");
+async function ghRead(c, quiet) {
   const u = "https://api.github.com/repos/" + c.repo + "/contents/" + (c.path || "data.json");
   const r = await fetch(u, { headers: { Authorization: "token " + c.token, Accept: "application/vnd.github+json" } });
-  if (!r.ok) return alert("读取失败：" + r.status);
+  if (!r.ok) { if (!quiet) alert("\u8bfb\u53d6\u5931\u8d25\uff1a" + r.status + "\uff08\u79c1\u6709\u4ed3\u5e93\u9700\u8981\u6709\u6548 token\uff09"); return null; }
   const j = await r.json();
   const txt = decodeURIComponent(escape(atob(j.content.replace(/\n/g, ""))));
-  S = JSON.parse(txt);
-  ensureSettings();
-  saveLocal(); render();
-  alert("已从云端拉取");
+  const d = JSON.parse(txt);
+  return d;
 }
 
-async function ghSave() {
+async function ghLoad() {
   const c = cfg();
-  if (!c.repo || !c.token) return alert("先在「设置」里填仓库和 token");
+  if (!c.repo || !c.token) return alert("\u5148\u5728\u300c\u8bbe\u7f6e\u300d\u91cc\u586b\u79c1\u6709\u6570\u636e\u4ed3\u5e93\u548c token");
+  const d = await ghRead(c, false);
+  if (!d) return;
+  S = d; ensureSettings(); saveLocal(); render();
+  alert("\u5df2\u4ece\u4e91\u7aef\u62c9\u53d6");
+}
+
+async function ghSave(quiet) {
+  const c = cfg();
+  if (!c.repo || !c.token) { if (!quiet) alert("\u5148\u5728\u300c\u8bbe\u7f6e\u300d\u91cc\u586b\u79c1\u6709\u6570\u636e\u4ed3\u5e93\u548c token"); return; }
   const path = c.path || "data.json";
   const u = "https://api.github.com/repos/" + c.repo + "/contents/" + path;
   let sha = null;
@@ -826,8 +850,8 @@ async function ghSave() {
   const body = { message: "update portfolio " + new Date().toISOString(), content: btoa(unescape(encodeURIComponent(JSON.stringify(S, null, 2)))) };
   if (sha) body.sha = sha;
   const r = await fetch(u, { method: "PUT", headers: { Authorization: "token " + c.token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) return alert("上传失败：" + r.status + " " + (await r.text()).slice(0, 200));
-  alert("已同步到云端");
+  if (!r.ok) { if (!quiet) alert("\u4e0a\u4f20\u5931\u8d25\uff1a" + r.status + " " + (await r.text()).slice(0, 200)); return; }
+  if (!quiet) alert("\u5df2\u540c\u6b65\u5230\u4e91\u7aef");
 }
 
 // ---------- 启动 ----------
@@ -839,6 +863,8 @@ async function main() {
   $("#ghRepo").value = c.repo || "";
   $("#ghToken").value = c.token || "";
   $("#ghPath").value = c.path || "data.json";
+  $("#autoSync").checked = !!c.autoSync;
+  $("#dataRepoState").textContent = c.repo ? "已连接 " + c.repo : "未配置（数据存本机）";
   $("#tgRot").value = S.settings.targets.rot;
   $("#tgSpy").value = S.settings.targets.spy;
   $("#tgNdx").value = S.settings.targets.ndx;
@@ -846,7 +872,14 @@ async function main() {
   $("#tgBond").value = S.settings.bondCode;
 
   $("#saveCfg").onclick = () => {
-    saveCfg({ repo: $("#ghRepo").value.trim(), token: $("#ghToken").value.trim(), path: $("#ghPath").value.trim() || "data.json" });
+    const nc = {
+      repo: $("#ghRepo").value.trim(),
+      token: $("#ghToken").value.trim(),
+      path: $("#ghPath").value.trim() || "data.json",
+      autoSync: $("#autoSync").checked
+    };
+    saveCfg(nc);
+    $("#dataRepoState").textContent = nc.repo ? "已连接 " + nc.repo : "未配置（数据存本机）";
     alert("已保存到本机");
   };
   $("#ghLoad").onclick = ghLoad;
@@ -872,6 +905,11 @@ async function main() {
   await refreshPrices(false);
   await loadSignal(false);
   renderStrategy();
+  const hashTab = location.hash.replace("#", "");
+  if (hashTab && ["hold","trade","strategy","analyze","set"].indexOf(hashTab) >= 0) {
+    const map = {hold:"pHold", trade:"pTrade", strategy:"pStrategy", analyze:"pAnalyze", set:"pSet"};
+    const b = $('.tab[data-p="' + map[hashTab] + '"]'); if (b) b.click();
+  }
   if (location.hash === "#trade") { const b = $('.tab[data-p="pTrade"]'); if (b) b.click(); }
   if (location.hash === "#strategy") { const b = $('.tab[data-p="pStrategy"]'); if (b) b.click(); }
   if (location.hash === "#analyze") { const b = $('.tab[data-p="pAnalyze"]'); if (b) b.click(); }

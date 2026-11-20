@@ -249,13 +249,21 @@
       </form>
     </div>
     <div class="card">
-      <h3>云同步（GitHub）</h3>
-      <div class="hint" style="margin-bottom:10px">在 GitHub 建仓库存 data.json，生成只给该仓库写权限的 token。</div>
-      <label>仓库（user/repo）</label><input id="ghRepo" placeholder="yourname/myportfolio">
-      <label style="margin-top:8px">Token（存本机）</label><input id="ghToken" type="password" placeholder="ghp_xxx">
+      <h3>数据仓库（私有）<small id="dataRepoState"></small></h3>
+      <div class="hint" style="margin-bottom:10px">
+        代码可以公开，持仓放一个<b>私有仓库</b>里。页面用 token 通过 GitHub API 读写它，别人看不到金额。
+      </div>
+      <label>私有数据仓库（user/repo）</label><input id="ghRepo" placeholder="Panzi-ssa/spreadfolio-data">
+      <label style="margin-top:8px">Token（只存本机，建议 fine-grained）</label><input id="ghToken" type="password" placeholder="github_pat_xxx">
       <label style="margin-top:8px">文件路径</label><input id="ghPath" placeholder="data.json">
+      <label style="margin-top:10px;display:flex;align-items:center;gap:8px;color:#41506b">
+        <input type="checkbox" id="autoSync" style="width:auto"> <span>每次修改后自动同步到云端</span>
+      </label>
       <div class="row"><button id="ghLoad">从云端拉取</button><button id="ghSave">同步到云端</button></div>
       <div class="row"><button id="saveCfg">保存本机配置</button></div>
+      <div class="hint">
+        换设备时：填好上面三项 → 点「保存本机配置」→ 点「从云端拉取」，数据就回来了。
+      </div>
     </div>
     <div class="card">
       <h3>本地备份</h3>

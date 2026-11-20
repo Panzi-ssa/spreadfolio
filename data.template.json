@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "accounts": [
+    { "id": "A", "name": "证券账户（场内）" },
+    { "id": "B", "name": "基金账户（场外）" }
+  ],
+  "cash": { "A": 0, "B": 0 },
+  "flows": [],
+  "trades": [],
+  "settings": {
+    "targets": { "rot": 50, "spy": 25, "ndx": 25 },
+    "divCode": "515080",
+    "bondCode": "511010",
+    "pe": { "value": 13.09, "date": "2026-11-20" }
+  },
+  "legs": { "515080": "rot", "511010": "rot" },
+  "priceCache": {},
+  "meta": { "updated": "2026-11-21" }
+}
