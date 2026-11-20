@@ -50,6 +50,12 @@ function ensureSettings() {
   st.pe = st.pe || { value: 13.09, date: "2026-11-20" };
   S.legs = S.legs || {};
   st.plans = S.plans = S.plans || [];
+  S.plans.forEach((pl) => {
+    if (!pl.per) {
+      const d = pl.freq === "daily" ? 21 : pl.freq === "weekly" ? 4 : 1;
+      pl.per = pl.monthly ? Number((pl.monthly / d).toFixed(2)) : 0;
+    }
+  });
   S.planSkip = S.planSkip || {};
 }
 
@@ -465,8 +471,11 @@ function renderTrades() {
 // ---------- 渲染：策略 ----------
 // ---------- 定投计划 ----------
 function periodAmount(plan) {
-  const div = plan.freq === "daily" ? 21 : plan.freq === "weekly" ? 4 : 1;
-  return plan.monthly / div;
+  return Number(plan.per) || 0;
+}
+
+function perDiv(freq) {
+  return freq === "daily" ? 21 : freq === "weekly" ? 4 : 1;
 }
 
 function execDates(plan, arr) {
@@ -540,14 +549,14 @@ function renderPlans() {
     const tr = document.createElement("tr");
     tr.innerHTML = "<td class='l'>" + (plan.name || plan.code) + " <span class='muted'>" + plan.code + "</span></td>" +
       "<td>" + (plan.freq === "daily" ? "每日" : plan.freq === "weekly" ? "每周" : "每月") + "</td>" +
-      "<td>" + money(plan.monthly) + "</td>" +
       "<td><b>" + money(periodAmount(plan)) + "</b></td>" +
+      "<td>" + money(periodAmount(plan) * perDiv(plan.freq)) + "</td>" +
       "<td>" + done + " 笔</td>" +
       "<td><button class='mini' data-delplan='" + plan.id + "'>删</button></td>";
     tb.appendChild(tr);
   });
   if (!(S.plans || []).length) tb.innerHTML = "<tr><td colspan='6' class='muted'>还没有定投计划</td></tr>";
-  const sum = (S.plans || []).reduce((a, p) => a + Number(p.monthly || 0), 0);
+  const sum = (S.plans || []).reduce((a, p) => a + periodAmount(p) * perDiv(p.freq), 0);
   const el = $("#planSum");
   if (el) el.textContent = "每月合计 " + money(sum);
   tb.onclick = (e) => {
@@ -1015,28 +1024,30 @@ function bindForms() {
   $("#planForm").onsubmit = (e) => {
     e.preventDefault();
     const code = $("#plCode").value.trim();
-    const monthly = Number($("#plMonthly").value);
-    if (!code || !monthly) return alert("填一下代码和月预算");
+    const per = Number($("#plPer").value);
+    if (!code || !per) return alert("填一下代码和每次金额");
+    const freq = $("#plFreq").value;
     const plan = {
-      id: uid(), code: code, name: NAME_CACHE[code] || code, monthly: monthly,
-      freq: $("#plFreq").value, day: Number($("#plDay").value) || 1,
+      id: uid(), code: code, name: NAME_CACHE[code] || code, per: per,
+      freq: freq, day: Number($("#plDay").value) || 1,
       start: $("#plStart").value || today(), leg: $("#plLeg").value, enabled: true
     };
     S.plans.push(plan);
     S.legs[code] = plan.leg;
     saveLocal(); render(); refreshPrices();
-    $("#plCode").value = ""; $("#plMonthly").value = "";
+    $("#plCode").value = ""; $("#plPer").value = "";
     alert("已创建定投计划，正在按历史净值补生成记录…");
   };
   const planPreview = () => {
-    const monthly = Number($("#plMonthly").value) || 0;
+    const per = Number($("#plPer").value) || 0;
     const freq = $("#plFreq").value;
-    const div = freq === "daily" ? 21 : freq === "weekly" ? 4 : 1;
-    $("#plPreview").textContent = monthly
-      ? "每期 " + money(monthly / div) + "（月预算 ÷ " + div + (freq === "daily" ? " 个交易日" : freq === "weekly" ? " 周" : "") + "）"
-      : "按频率自动算出每期金额";
+    const div = perDiv(freq);
+    const unit = freq === "daily" ? "个交易日" : freq === "weekly" ? "周" : "月";
+    $("#plPreview").textContent = per
+      ? "每次 " + money(per) + " → 每月约 " + money(per * div) + "（按 " + div + " " + unit + "算）"
+      : "填每次金额，自动换算每月投入";
   };
-  $("#plMonthly").addEventListener("input", planPreview);
+  $("#plPer").addEventListener("input", planPreview);
   $("#plFreq").addEventListener("change", planPreview);
   planPreview();
 

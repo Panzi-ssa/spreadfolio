@@ -181,16 +181,16 @@
     <div class="card">
       <h3>定投计划 <small id="planSum"></small></h3>
       <div class="hint" style="margin-bottom:8px">
-        设一个月度预算，按频率自动分摊到每个交易日；多只标的各建一条，互不影响。
+        直接填<b>每次扣多少</b>，系统自动算每月大概投多少；多只标的各建一条，互不影响。
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="l">标的</th><th>频率</th><th>月预算</th><th>每期金额</th><th>已生成</th><th></th></tr></thead>
+        <thead><tr><th class="l">标的</th><th>频率</th><th>每次</th><th>月投入(约)</th><th>已生成</th><th></th></tr></thead>
         <tbody id="planBody"></tbody></table></div>
       <details style="margin-top:10px">
         <summary style="font-size:13px;color:#41506b;cursor:pointer">新建定投计划</summary>
         <form id="planForm" style="margin-top:10px">
           <div><label>代码</label><input id="plCode" placeholder="016452"></div>
-          <div><label>月预算（元）</label><input id="plMonthly" type="number" step="1" placeholder="1000"></div>
+          <div><label>每次扣款（元）</label><input id="plPer" type="number" step="0.01" placeholder="100"></div>
           <div><label>频率</label><select id="plFreq">
             <option value="daily">每个交易日</option>
             <option value="weekly">每周一次</option>
@@ -202,7 +202,7 @@
             <option value="rot">股债轮动</option><option value="spy">标普500</option>
             <option value="ndx">纳指</option><option value="other">其他</option>
           </select></div>
-          <div class="full hint" id="plPreview">按频率自动算出每期金额</div>
+          <div class="full hint" id="plPreview">填每次金额，自动换算每月投入</div>
           <button class="primary" type="submit">创建计划</button>
         </form>
       </details>
@@ -342,10 +342,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21c</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21d</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121c"></script>
+<script src="app.js?v=20261121d"></script>
 </body>
 </html>
