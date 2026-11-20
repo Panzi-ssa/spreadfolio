@@ -48,6 +48,8 @@
                background:#fbfcfe;color:var(--txt)}
   button.primary{grid-column:1/-1;padding:11px;border:0;border-radius:10px;background:var(--blue);color:#fff;
                  font-size:15px;font-weight:600}
+  .field{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+         font-size:13px;background:#fbfcfe;color:var(--txt);font-family:ui-monospace,Menlo,Consolas,monospace}
   .ranges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
   .rbtn{border:1px solid var(--line);background:#fff;color:#41506b;border-radius:8px;padding:6px 10px;font-size:13px}
   .rbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
@@ -142,6 +144,21 @@
         <button class="primary" type="submit">保存交易</button>
       </form>
     </div>
+    <div class="card">
+      <h3>导入现有持仓 <small>没有历史交易记录时用</small></h3>
+      <div class="hint" style="margin-bottom:8px">
+        一行一只：<code>代码,名称,份额,成本价,建仓日期</code><br>
+        逗号、空格、制表符都行（可直接从 Excel 粘贴）。会同时生成一笔等额入金，保证「累计投入」正确。
+      </div>
+      <textarea id="initText" class="field" rows="4"
+        placeholder="515080,中证红利ETF,63700,1.568,2026-11-20&#10;511010,国债ETF,200,141.41,2026-11-20"></textarea>
+      <div class="row">
+        <input type="date" id="initDate" style="flex:1" title="没填日期时用这个">
+        <button id="btnInit" style="flex:0 0 110px">导入</button>
+      </div>
+      <div class="hint" id="initPreview">日期列留空 → 用左边这个日期</div>
+    </div>
+
     <div class="card">
       <h3>入金 / 出金</h3>
       <form id="flowForm">

@@ -719,6 +719,44 @@ function templateCSV() {
   a.download = "对账单模板.csv"; a.click();
 }
 
+// ---------- 导入现有持仓 ----------
+function parseInitLines(text, defDate) {
+  const out = [];
+  text.split(/\r?\n/).forEach((line) => {
+    line = line.trim();
+    if (!line) return;
+    let parts = line.split(/[,\t;\uff0c]+/).map((x) => x.trim()).filter((x) => x !== "");
+    if (parts.length < 4) parts = line.split(/\s+/).filter((x) => x !== "");
+    if (parts.length < 4) return;
+    const code = parts[0];
+    const name = parts[1] || code;
+    const shares = Number(String(parts[2]).replace(/[,\s]/g, ""));
+    const price = Number(String(parts[3]).replace(/[,\s]/g, ""));
+    let date = defDate;
+    if (parts[4] && /^\d{4}-\d{2}-\d{2}$/.test(parts[4])) date = parts[4];
+    if (!code || !isFinite(shares) || !isFinite(price) || !shares || !price) return;
+    out.push({ code: code, name: name, shares: shares, price: price, date: date });
+  });
+  return out;
+}
+
+function importInit() {
+  const defDate = $("#initDate").value || today();
+  const rows = parseInitLines($("#initText").value, defDate);
+  if (!rows.length) return alert("没解析到内容。\n格式：代码,名称,份额,成本价,日期");
+  const total = rows.reduce((a, r) => a + r.shares * r.price, 0);
+  if (!confirm("将导入 " + rows.length + " 只持仓，总成本约 " + money(total) + "，\n并生成等额入金记录。继续？")) return;
+  const acc = (S.accounts[0] || {}).id || "A";
+  rows.forEach((r) => {
+    S.flows.push({ id: uid(), date: r.date, account: acc, amount: Number((r.shares * r.price).toFixed(2)), note: "期初持仓 " + r.code });
+    S.trades.push({ id: uid(), date: r.date, account: acc, code: r.code, name: r.name, side: "buy", shares: r.shares, price: r.price, fee: 0, init: true });
+    if (!S.legs[r.code]) S.legs[r.code] = "other";
+  });
+  saveLocal(); render(); refreshPrices();
+  $("#initText").value = "";
+  $("#initPreview").textContent = "已导入 " + rows.length + " 只";
+}
+
 // ---------- 交互 ----------
 function accountOptions() {
   return (S.accounts || []).map((a) => "<option value='" + a.id + "'>" + a.name + "</option>").join("");
@@ -766,6 +804,15 @@ function bindForms() {
     S.flows.push(f); saveLocal(); render();
     $("#fAmt").value = "";
   };
+
+  $("#btnInit").onclick = importInit;
+  $("#initDate").value = today();
+  $("#initText").addEventListener("input", () => {
+    const rows = parseInitLines($("#initText").value, $("#initDate").value || today());
+    $("#initPreview").textContent = rows.length
+      ? "识别到 " + rows.length + " 只，总成本约 " + money(rows.reduce((a, r) => a + r.shares * r.price, 0))
+      : "格式：代码,名称,份额,成本价,日期";
+  });
 
   $("#targetForm").onsubmit = (e) => {
     e.preventDefault();
