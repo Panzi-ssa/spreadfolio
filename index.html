@@ -197,9 +197,19 @@
       <div id="csvPreview" class="hint"></div>
     </div>
     <div class="card">
-      <h3>交易记录 <small>倒序</small></h3>
+      <h3>交易记录 <small id="tradeCount"></small></h3>
+      <div class="row" style="margin-bottom:8px">
+        <select id="tradeFilter" style="flex:2"></select>
+        <select id="tradeKind" style="flex:1">
+          <option value="">全部</option>
+          <option value="manual">只看手动</option>
+          <option value="auto">只看定投</option>
+        </select>
+        <button id="btnDelSel" style="flex:0 0 104px;color:#c92a2a;border-color:#ffc9c9">删除选中</button>
+      </div>
       <div class="tablewrap"><table>
-        <thead><tr><th class="l">日期</th><th class="l hide-s">账户</th><th class="l">代码</th><th class="l">名称</th>
+        <thead><tr><th style="width:30px"><input type="checkbox" id="tradeAll"></th>
+        <th class="l">日期</th><th class="l hide-s">账户</th><th class="l">代码</th><th class="l">名称</th>
         <th>方向</th><th>份额</th><th>价格</th><th class="hide-s">费用</th><th></th></tr></thead>
         <tbody id="tradeBody"></tbody></table></div>
     </div>
@@ -348,10 +358,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21k</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-21l</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261121k"></script>
+<script src="app.js?v=20261121l"></script>
 </body>
 </html>

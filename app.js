@@ -442,30 +442,69 @@ function renderAttribution() {
 // ---------- 渲染：交易 ----------
 function renderTrades() {
   const tb = $("#tradeBody");
+  const fsel = $("#tradeFilter");
+  if (!tb) return;
+  if (!window.TRADE_FILTER) window.TRADE_FILTER = { code: "", kind: "" };
+  const F = window.TRADE_FILTER;
+
+  // 填充筛选下拉（保留选择）
+  const codes = [];
+  S.trades.forEach((x) => { if (codes.indexOf(x.code) < 0) codes.push(x.code); });
+  const cur = F.code;
+  fsel.innerHTML = "<option value=''>全部标的</option>" +
+    codes.map((c) => {
+      const nm = (S.trades.find((x) => x.code === c) || {}).name || c;
+      return "<option value='" + c + "'>" + nm + " (" + c + ")</option>";
+    }).join("");
+  fsel.value = codes.indexOf(cur) >= 0 ? cur : "";
+  F.code = fsel.value;
+  $("#tradeKind").value = F.kind;
+
+  const list = S.trades
+    .filter((x) => !F.code || x.code === F.code)
+    .filter((x) => !F.kind || (F.kind === "auto" ? !!x.auto : !x.auto))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
   tb.innerHTML = "";
-  const ts = S.trades.slice().sort((a, b) => (a.date < b.date ? 1 : -1));
-  ts.forEach((t) => {
+  list.forEach((t) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + t.date + "</td><td class='hide-s'>" + (t.accountName || t.account || "") + "</td>" +
-      "<td>" + t.code + "</td><td class='l'>" + (t.name || "") + "</td>" +
+    tr.innerHTML = "<td><input type='checkbox' class='tsel' data-id='" + t.id + "'></td>" +
+      "<td>" + t.date + "</td><td class='hide-s'>" + (t.accountName || t.account || "") + "</td>" +
+      "<td>" + t.code + "</td><td class='l'>" + (t.name || "") + (t.auto ? " <span class='muted'>定投</span>" : "") + "</td>" +
       "<td class='" + (t.side === "buy" ? "up" : "down") + "'>" + (t.side === "buy" ? "买入" : "卖出") + "</td>" +
       "<td>" + fmt(t.shares, 2) + "</td><td>" + fmt(t.price, 4) + "</td>" +
       "<td class='hide-s'>" + fmt(t.fee || 0, 2) + "</td><td><button class='mini' data-del='" + t.id + "'>删</button></td>";
     tb.appendChild(tr);
   });
-  if (!ts.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>暂无交易记录</td></tr>";
+  if (!list.length) tb.innerHTML = "<tr><td colspan='10' class='muted'>没有符合条件的记录</td></tr>";
+  const cnt = $("#tradeCount");
+  if (cnt) cnt.textContent = list.length + " / " + S.trades.length + " 条";
+
+  const all = $("#tradeAll");
+  if (all) { all.checked = false; }
   tb.onclick = (e) => {
     const id = e.target.getAttribute && e.target.getAttribute("data-del");
     if (!id) return;
     if (!confirm("删除这条记录？")) return;
+    delTrades([id]);
+  };
+  fsel.onchange = () => { F.code = fsel.value; renderTrades(); };
+  $("#tradeKind").onchange = () => { F.kind = $("#tradeKind").value; renderTrades(); };
+  if (all) all.onclick = () => {
+    tb.querySelectorAll(".tsel").forEach((c) => { c.checked = all.checked; });
+  };
+}
+
+function delTrades(ids) {
+  ids.forEach((id) => {
     const t = S.trades.find((x) => x.id === id);
     if (t && t.planId) {
       S.planSkip[t.planId] = S.planSkip[t.planId] || [];
       S.planSkip[t.planId].push(t.date);
     }
-    S.trades = S.trades.filter((x) => x.id !== id);
-    saveLocal(); render();
-  };
+  });
+  S.trades = S.trades.filter((x) => ids.indexOf(x.id) < 0);
+  saveLocal(); render();
 }
 
 // ---------- 渲染：策略 ----------
@@ -1075,6 +1114,12 @@ function bindForms() {
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
   $("#btnPlanNav").onclick = manualNAV;
+  $("#btnDelSel").onclick = () => {
+    const ids = Array.from(document.querySelectorAll(".tsel")).filter((c) => c.checked).map((c) => c.getAttribute("data-id"));
+    if (!ids.length) return alert("先勾选要删除的记录");
+    if (!confirm("删除选中的 " + ids.length + " 条记录？")) return;
+    delTrades(ids);
+  };
 
   $("#planForm").onsubmit = async (e) => {
     e.preventDefault();
