@@ -188,7 +188,10 @@ async function loadPrices(codes, force) {
       try { arr = await fetchFundNav(code); } catch (e) { arr = []; }
       if (!arr.length) { try { arr = await fetchKlinePair(code); } catch (e) { arr = []; } }
     }
-    if (arr.length) { out[code] = arr; S.priceCache[code] = arr; }
+    if (arr.length) {
+      if (arr.length > 2000) arr = arr.slice(-2000);
+      out[code] = arr; S.priceCache[code] = arr;
+    }
     else if (cached) out[code] = cached;
   }
   PRICES = out;
@@ -1462,8 +1465,18 @@ async function ghRead(c, quiet) {
       ? "\u8bfb\u53d6\u5931\u8d25\uff1a404\n\n\u5e38\u89c1\u539f\u56e0\uff1a\n1) \u4ed3\u5e93\u540d\u5199\u9519\u6216\u4ed3\u5e93\u4e0d\u5b58\u5728\n2) token \u6ca1\u52fe\u9009\u8fd9\u4e2a\u4ed3\u5e93\uff08fine-grained \u5fc5\u987b\u624b\u52a8\u9009\uff09\n3) \u6587\u4ef6\u4e0d\u5b58\u5728\uff0c\u6bd4\u5982\u5b9e\u9645\u53eb data.json.txt\n\n\u70b9\u300c\u6d4b\u8bd5\u8fde\u63a5\u300d\u53ef\u5b9a\u4f4d\u662f\u54ea\u4e00\u6b65\u3002"
       : "\u8bfb\u53d6\u5931\u8d25\uff1a" + r.status); } return null; }
   const j = await r.json();
+  if (!j.content || j.encoding === "none") {
+    if (!quiet) alert("云端文件读不到内容。\n\n常见原因：\n1) 文件是空的（上一次保存中断）\n2) 文件超过 1MB，GitHub 的 Contents 接口不返回内容\n\n解决办法：在数据正常的设备上点「同步到云端」重新上传（新版会自动去掉行情缓存，体积小很多）。");
+    return null;
+  }
   const txt = decodeURIComponent(escape(atob(j.content.replace(/\n/g, ""))));
-  const d = JSON.parse(txt);
+  if (!txt.trim()) { if (!quiet) alert("云端文件是空的。请在有数据的设备上重新「同步到云端」。"); return null; }
+  let d;
+  try { d = JSON.parse(txt); } catch (e) {
+    if (!quiet) alert("云端文件解析失败（可能内容不完整）。\n建议在数据正常的设备上重新「同步到云端」。");
+    return null;
+  }
+  d.priceCache = d.priceCache || {};
   return d;
 }
 
@@ -1512,10 +1525,23 @@ async function ghSave(quiet) {
   let sha = null;
   const r0 = await fetch(u, { headers: { Authorization: "token " + c.token } });
   if (r0.ok) { const j0 = await r0.json(); sha = j0.sha; }
-  const body = { message: "update portfolio " + new Date().toISOString(), content: btoa(unescape(encodeURIComponent(JSON.stringify(S, null, 2)))) };
+  const clone = Object.assign({}, S);
+  delete clone.priceCache;                       // 行情缓存不上云，省体积
+  let payload = JSON.stringify(clone, null, 2);
+  if (payload.length > 900000) {
+    if (!confirm("数据约 " + Math.round(payload.length / 1024) + " KB，接近 GitHub 1MB 上限，可能上传失败。继续？")) return;
+  }
+  const body = { message: "update portfolio " + new Date().toISOString(), content: btoa(unescape(encodeURIComponent(payload))) };
   if (sha) body.sha = sha;
   const r = await fetch(u, { method: "PUT", headers: { Authorization: "token " + c.token, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) { if (!quiet) alert("\u4e0a\u4f20\u5931\u8d25\uff1a" + r.status + " " + (await r.text()).slice(0, 200)); return; }
+  if (!r.ok) {
+    if (r.status === 409 || r.status === 422) {
+      if (!quiet) alert("云端已被另一台设备改过（版本冲突）。\n请先点「从云端拉取」，确认后再同步。");
+      return;
+    }
+    if (!quiet) alert("\u4e0a\u4f20\u5931\u8d25\uff1a" + r.status + " " + (await r.text()).slice(0, 200));
+    return;
+  }
   if (!quiet) alert("\u5df2\u540c\u6b65\u5230\u4e91\u7aef");
 }
 
