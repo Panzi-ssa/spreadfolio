@@ -1513,8 +1513,14 @@ async function ghLoad() {
   if (!c.repo || !c.token) return alert("\u5148\u5728\u300c\u8bbe\u7f6e\u300d\u91cc\u586b\u79c1\u6709\u6570\u636e\u4ed3\u5e93\u548c token");
   const d = await ghRead(c, false);
   if (!d) return;
-  S = d; ensureSettings(); saveLocal(); render();
+  S = d;
+  ensureSettings(); ensureGroups(); migrateMarket();
+  const tl = $("#tLeg"), pl = $("#plLeg");
+  if (tl) tl.innerHTML = groupOptions((S.groups[0] || {}).id || SAT);
+  if (pl) pl.innerHTML = groupOptions((S.groups[0] || {}).id || SAT);
+  saveLocal(); render();
   alert("\u5df2\u4ece\u4e91\u7aef\u62c9\u53d6");
+  refreshPrices(false);
 }
 
 async function ghSave(quiet) {
