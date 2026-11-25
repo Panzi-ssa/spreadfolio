@@ -47,6 +47,7 @@ function ensureSettings() {
   st.divCode = st.divCode || "515080";
   st.bondCode = st.bondCode || "511010";
   st.pe = st.pe || { value: 13.09, date: "2026-11-20" };
+  st.manualErp = st.manualErp || null; // 手动填的股债利差（%），有值时优先于 PE/10Y 自动计算
   S.legs = S.legs || {};
   st.plans = S.plans = S.plans || [];
   S.plans.forEach((pl) => {
@@ -370,6 +371,13 @@ function fetchY10() {
 }
 
 async function loadSignal(force) {
+  // 手动填的利差优先；点「刷新信号数据」时才清掉、回到自动估值
+  if (force && S.settings.manualErp) { S.settings.manualErp = null; saveLocal(); }
+  else if (!force && S.settings.manualErp && isFinite(S.settings.manualErp.value)) {
+    const me = S.settings.manualErp;
+    SIGNAL = { date: me.date || today(), pe: null, y10: null, erp: Number(me.value), src: "手动利差", manual: true };
+    return SIGNAL;
+  }
   if (!force && SIGNAL && days(SIGNAL.date || "2000-01-01", today()) <= 1) return SIGNAL;
   let sig = null;
   try {
@@ -1082,7 +1090,7 @@ function renderStrategy() {
   if (!sig || !sig.erp) {
     card.textContent = "-";
     $("#sigTag").textContent = "无信号";
-    $("#sigRec").textContent = "点「刷新信号数据」或「手动填 PE」";
+    $("#sigRec").textContent = "点「刷新信号数据」或「手动填利差」";
   } else {
     const b = bucketOf(sig.erp);
     card.textContent = sig.erp.toFixed(2) + "%";
@@ -1094,7 +1102,9 @@ function renderStrategy() {
     $("#sigBar").innerHTML = "<i style='width:" + b.eq + "%;background:" + (b.eq >= 70 ? "#e03131" : b.eq > 0 ? "#f08c00" : "#2f9e44") + "'></i>";
     $("#sigPct").textContent = "红利 " + b.eq + "%";
     $("#sigBond").textContent = "国债 " + (100 - b.eq) + "%";
-    $("#sigBasis").textContent = "沪深300 PE " + fmt(sig.pe, 2) + " · 10Y国债 " + (sig.y10 ? fmt(sig.y10, 3) + "%" : "-") + " · " + (sig.src || "");
+    $("#sigBasis").textContent = sig.manual
+      ? "手动填写利差（" + (sig.date || "") + "），点「刷新信号数据」恢复自动估值"
+      : "沪深300 PE " + fmt(sig.pe, 2) + " · 10Y国债 " + (sig.y10 ? fmt(sig.y10, 3) + "%" : "-") + " · " + (sig.src || "");
     const total = stratBase();
     $("#sigRec").textContent = "本月建议：" + b.desc + "（按策略金额 " + money(total) + "，红利约 " + money(total * b.eq / 100) + "，国债约 " + money(total * (100 - b.eq) / 100) + "）";
   }
@@ -1644,12 +1654,13 @@ function bindForms() {
     renderStrategy();
   };
   $("#btnSigManual").onclick = () => {
-    const pe = prompt("输入沪深300 PE(TTM)：", String(S.settings.pe.value || ""));
-    if (!pe) return;
-    const y10 = prompt("输入中国 10 年期国债收益率(%)，留空则用实时值：", SIGNAL && SIGNAL.y10 ? String(SIGNAL.y10) : "");
-    S.settings.pe = { value: Number(pe), date: today() };
-    SIGNAL = { date: today(), pe: Number(pe), y10: y10 ? Number(y10) : (SIGNAL ? SIGNAL.y10 : null), src: "手动" };
-    SIGNAL.erp = SIGNAL.y10 ? 100 / SIGNAL.pe - SIGNAL.y10 : null;
+    const cur = SIGNAL && isFinite(SIGNAL.erp) ? Number(SIGNAL.erp).toFixed(2) : "";
+    const raw = prompt("输入当前沪深300 股债利差（%），例如 5.42：", cur);
+    if (raw === null) return;
+    const num = Number(String(raw).replace(/[%\s，,]/g, ""));
+    if (String(raw).trim() === "" || !isFinite(num)) return alert("请填一个数字，例如 5.42");
+    S.settings.manualErp = { value: num, date: today() };
+    SIGNAL = { date: today(), pe: null, y10: null, erp: num, src: "手动利差", manual: true };
     saveLocal(); renderStrategy();
   };
 }
