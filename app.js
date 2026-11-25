@@ -320,10 +320,10 @@ function attribution() {
   const st = {};
   const trades = S.trades.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
   for (const t of trades) {
-    if (!st[t.code]) st[t.code] = { code: t.code, name: t.name || t.code, shares: 0, cost: 0, realized: 0 };
+    if (!st[t.code]) st[t.code] = { code: t.code, name: t.name || t.code, shares: 0, cost: 0, realized: 0, invested: 0 };
     const h = st[t.code];
     const sh = Number(t.shares), px = Number(t.price), fee = Number(t.fee || 0);
-    if (t.side === "buy") { h.shares += sh; h.cost += sh * px + fee; }
+    if (t.side === "buy") { h.shares += sh; h.cost += sh * px + fee; h.invested += sh * px + fee; }
     else {
       const avg = h.shares > 0 ? h.cost / h.shares : 0;
       h.realized += sh * (px - avg) - fee;
@@ -336,7 +336,12 @@ function attribution() {
     const p = lastPrice(h.code);
     const mv = p ? p * h.shares : 0;
     const un = p ? mv - h.cost : 0;
-    return { code: h.code, name: h.name, realized: h.realized, unrealized: un, total: h.realized + un };
+    const total = h.realized + un;
+    return {
+      code: h.code, name: h.name, realized: h.realized, unrealized: un, total: total,
+      // 收益率按「累计买入成本」算，卖出回本的部分也算投入，已清仓的标的也能给出结果
+      rate: h.invested > 0 ? total / h.invested : null
+    };
   }).sort((a, b) => b.total - a.total);
 }
 
@@ -399,6 +404,7 @@ function render() {
   $("#asof").textContent = last.date;
 
   renderHoldings();
+  renderCombo();
   renderAttribution();
   renderTrades();
   renderFlows();
@@ -439,6 +445,157 @@ function groupName(id) {
 
 function groupOptions(sel) {
   return groupList().map((g) => "<option value='" + g.id + "'" + (g.id === sel ? " selected" : "") + ">" + g.name + "</option>").join("");
+}
+
+// ---------- 组合选择 & 组合统计 ----------
+const LS_PICK = "pf_pick_v1";
+
+function pnlCls(x) { return x >= 0 ? "up" : "down"; }
+
+function rateText(rate) {
+  if (rate === null || rate === undefined || !isFinite(rate)) return "-";
+  return (rate >= 0 ? "+" : "") + pct(rate);
+}
+
+// 一组持仓的汇总：市值 / 成本 / 浮动盈亏 / 收益率（缺现价的标的不计入）
+function statOf(hs) {
+  let mv = 0, cost = 0, miss = 0;
+  hs.forEach((h) => {
+    const p = lastPrice(h.code);
+    if (!p) { miss++; return; }
+    mv += p * h.shares;
+    cost += h.cost;
+  });
+  const pnl = mv - cost;
+  return { mv: mv, cost: cost, pnl: pnl, rate: cost > 0 ? pnl / cost : null, miss: miss, n: hs.length };
+}
+
+// 选中的标的集合（记在本机，默认选中全部分组里的策略标的）
+function pickStore() {
+  if (!window.PICK) {
+    let codes = null;
+    try {
+      const raw = localStorage.getItem(LS_PICK);
+      if (raw !== null) codes = JSON.parse(raw);
+    } catch (e) { codes = null; }
+    if (!Array.isArray(codes)) codes = holdings().filter((h) => legOf(h.code) !== SAT).map((h) => h.code);
+    const map = {};
+    codes.forEach((c) => { map[c] = 1; });
+    window.PICK = { codes: map };
+  }
+  return window.PICK;
+}
+
+function pickSave() {
+  try { localStorage.setItem(LS_PICK, JSON.stringify(Object.keys(pickStore().codes))); } catch (e) { /* ignore */ }
+}
+
+function pickHas(code) { return !!pickStore().codes[code]; }
+
+function pickToggle(code, on) {
+  const P = pickStore();
+  if (on) P.codes[code] = 1; else delete P.codes[code];
+}
+
+// 清掉已不再持有的代码（卖出/清空数据后自动失效）
+function pickClean() {
+  const codes = holdings().map((h) => h.code);
+  const P = pickStore();
+  let dirty = false;
+  Object.keys(P.codes).forEach((c) => { if (codes.indexOf(c) < 0) { delete P.codes[c]; dirty = true; } });
+  if (dirty) pickSave();
+}
+
+function pickCodes() {
+  pickClean();
+  const map = pickStore().codes;
+  return holdings().map((h) => h.code).filter((c) => map[c]);
+}
+
+function pickSet(codes) {
+  const P = pickStore();
+  P.codes = {};
+  codes.forEach((c) => { P.codes[c] = 1; });
+  pickSave();
+}
+
+// 持仓表头的「全选」状态跟着当前筛选结果走
+function syncHoldChecks() {
+  const box = $("#holdAll");
+  if (!box) return;
+  const list = Array.from(document.querySelectorAll("#holdBody .hsel"));
+  const on = list.filter((c) => c.checked).length;
+  box.checked = list.length > 0 && on === list.length;
+  box.indeterminate = on > 0 && on < list.length;
+}
+
+function renderCombo() {
+  const chips = $("#comboChips"), tb = $("#comboBody"), note = $("#comboSel");
+  if (!chips || !tb) return;
+  const hs = holdings();
+  const sel = hs.filter((h) => pickHas(h.code));
+  const gl = groupList();
+
+  // 分组按钮：再点一次整组移出；「策略/全部/清空」是整体替换
+  let chipHtml = "<button class='chip add' data-pick='strat'>策略</button>" +
+    "<button class='chip add' data-pick='all'>全部</button>" +
+    "<button class='chip add' data-pick='none'>清空</button>";
+  gl.forEach((g) => {
+    const mine = hs.filter((h) => legOf(h.code) === g.id);
+    if (!mine.length) return;
+    const on = mine.every((h) => pickHas(h.code));
+    chipHtml += "<button class='chip" + (on ? " on" : "") + "' data-pickgrp='" + g.id + "'>" +
+      g.name + " <span>" + mine.length + "</span></button>";
+  });
+  chips.innerHTML = chipHtml;
+
+  chips.onclick = (e) => {
+    const b = e.target.closest ? e.target.closest("button") : e.target;
+    if (!b) return;
+    const k = b.getAttribute("data-pick"), gid = b.getAttribute("data-pickgrp");
+    if (k === "all") pickSet(hs.map((h) => h.code));
+    else if (k === "strat") pickSet(hs.filter((h) => legOf(h.code) !== SAT).map((h) => h.code));
+    else if (k === "none") pickSet([]);
+    else if (gid) {
+      const mine = hs.filter((h) => legOf(h.code) === gid);
+      const on = !mine.every((h) => pickHas(h.code));
+      mine.forEach((h) => pickToggle(h.code, on));
+      pickSave();
+    }
+    renderHoldings();
+    renderCombo();
+  };
+
+  const tot = statOf(sel);
+  const rows = [];
+  gl.forEach((g) => {
+    const mine = sel.filter((h) => legOf(h.code) === g.id);
+    if (!mine.length) return;
+    const s = statOf(mine);
+    const allN = hs.filter((h) => legOf(h.code) === g.id).length;
+    rows.push("<tr><td class='l'>" + g.name +
+      (mine.length < allN ? " <span class='muted'>" + mine.length + "/" + allN + " 只</span>" : "") + "</td>" +
+      "<td>" + money(s.mv) + "</td><td class='hide-s'>" + money(s.cost) + "</td>" +
+      "<td class='" + pnlCls(s.pnl) + "'>" + fmtPnl(s.pnl) + "</td>" +
+      "<td class='" + pnlCls(s.pnl) + "'><b>" + rateText(s.rate) + "</b></td>" +
+      "<td class='hide-s'>" + (tot.mv ? pct(s.mv / tot.mv) : "-") + "</td></tr>");
+  });
+  if (rows.length > 1) {
+    rows.push("<tr class='sumrow'><td class='l'>合计 " + sel.length + " 只</td>" +
+      "<td>" + money(tot.mv) + "</td><td class='hide-s'>" + money(tot.cost) + "</td>" +
+      "<td class='" + pnlCls(tot.pnl) + "'>" + fmtPnl(tot.pnl) + "</td>" +
+      "<td class='" + pnlCls(tot.pnl) + "'><b>" + rateText(tot.rate) + "</b></td>" +
+      "<td class='hide-s'>" + (tot.mv ? "100.00%" : "-") + "</td></tr>");
+  }
+  tb.innerHTML = rows.length ? rows.join("")
+    : "<tr><td colspan='6' class='muted'>点上面的分组，或在持仓表里勾选标的</td></tr>";
+
+  if (note) {
+    note.textContent = sel.length
+      ? "已选 " + sel.length + " 只 · 盈亏 " + fmtPnl(tot.pnl) + "（" + rateText(tot.rate) + "）" +
+        (tot.miss ? " · " + tot.miss + " 只缺现价" : "")
+      : "未选择";
+  }
 }
 
 function marketOf(code) {
@@ -511,26 +668,68 @@ function renderHoldings() {
     const px = lastPrice(h.code);
     const mv = px ? px * h.shares : 0;
     const pnl = px ? mv - h.cost : null;
+    const rate = pnl !== null && h.cost > 0 ? pnl / h.cost : null;
     const leg = legOf(h.code);
     const mk = marketOf(h.code);
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name +
+    tr.innerHTML = "<td><input type='checkbox' class='hsel' data-code='" + h.code + "'" + (pickHas(h.code) ? " checked" : "") + "></td>" +
+      "<td class='hide-xs'>" + h.code + "</td><td class='l'>" + h.name +
       " <select class='mksel' data-code='" + h.code + "' style='width:auto;padding:1px 4px;font-size:11px;display:inline-block'>" +
       ["场内", "场外"].map((k) => "<option value='" + k + "'" + (k === mk ? " selected" : "") + ">" + k + "</option>").join("") +
-      "</select></td>" +
+      "</select>" +
+      "<div class='sub-m'>" + h.code + " · 市值 " + (px ? money(mv) : "-") + " · 份额 " + fmt(h.shares, 2) + "</div></td>" +
       "<td class='l hide-s'><select class='legsel' data-code='" + h.code + "'>" +
       groupOptions(leg) +
       "</select></td>" +
-      "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
-      "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
-      "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>" +
+      "<td class='hide-xs'>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
+      "<td class='hide-xs'>" + (px ? fmt(px, 4) : "-") + "</td><td class='hide-xs'>" + (px ? fmt(mv, 2) : "-") + "</td>" +
+      "<td class='" + (pnl === null ? "" : pnlCls(pnl)) + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>" +
+      "<td class='" + (rate === null ? "" : pnlCls(rate)) + "'><b>" + rateText(rate) + "</b></td>" +
       "<td class='hide-s'>" + (mv && total ? pct(mv / total) : "-") + "</td>";
     tb.appendChild(tr);
   });
-  if (!list.length) tb.innerHTML = "<tr><td colspan='9' class='muted'>" + (hs.length ? "没有符合筛选的持仓" : "还没有策略持仓，去「交易」里记一笔") + "</td></tr>";
+  if (!list.length) {
+    tb.innerHTML = "<tr><td colspan='11' class='muted'>" + (hs.length ? "没有符合筛选的持仓" : "还没有策略持仓，去「交易」里记一笔") + "</td></tr>";
+  } else {
+    // 合计行：当前筛选结果的整体市值 / 盈亏 / 收益率
+    const s = statOf(list);
+    const tr = document.createElement("tr");
+    tr.className = "sumrow";
+    tr.innerHTML = "<td></td><td class='hide-xs'></td>" +
+      "<td class='l'>合计 " + list.length + " 只" + (s.miss ? " · " + s.miss + " 只缺现价" : "") +
+      "<div class='sub-m'>市值 " + money(s.mv) + " · 成本 " + money(s.cost) + "</div></td>" +
+      "<td class='hide-s'></td><td class='hide-xs'></td>" +
+      "<td class='hide-s'></td><td class='hide-xs'></td><td class='hide-xs'>" + money(s.mv) + "</td>" +
+      "<td class='" + pnlCls(s.pnl) + "'>" + fmtPnl(s.pnl) + "</td>" +
+      "<td class='" + pnlCls(s.pnl) + "'><b>" + rateText(s.rate) + "</b></td>" +
+      "<td class='hide-s'>" + (s.mv ? "100.00%" : "-") + "</td>";
+    tb.appendChild(tr);
+  }
+
+  const allBox = $("#holdAll");
+  if (allBox) {
+    const picked = list.filter((h) => pickHas(h.code)).length;
+    allBox.checked = list.length > 0 && picked === list.length;
+    allBox.indeterminate = picked > 0 && picked < list.length;
+    allBox.onchange = () => {
+      const on = allBox.checked;
+      list.forEach((h) => pickToggle(h.code, on));
+      pickSave();
+      tb.querySelectorAll(".hsel").forEach((c) => { c.checked = on; });
+      syncHoldChecks();
+      renderCombo();
+    };
+  }
 
   tb.onchange = (e) => {
     const sel = e.target;
+    if (sel.classList.contains("hsel")) {
+      pickToggle(sel.getAttribute("data-code"), sel.checked);
+      pickSave();
+      syncHoldChecks();
+      renderCombo();
+      return;
+    }
     if (sel.classList.contains("mksel")) {
       const mcode = sel.getAttribute("data-code");
       let hit = false;
@@ -558,25 +757,36 @@ function renderSatellite(list) {
   if (!list.length) { card.style.display = "none"; return; }
   card.style.display = "";
   tb.innerHTML = "";
-  let mvSum = 0, pnlSum = 0;
+  let mvSum = 0, costSum = 0, pnlSum = 0, miss = 0;
   list.forEach((h) => {
     const px = lastPrice(h.code);
     const mv = px ? px * h.shares : 0;
     const pnl = px ? mv - h.cost : null;
-    mvSum += mv;
-    if (pnl !== null) pnlSum += pnl;
+    const rate = pnl !== null && h.cost > 0 ? pnl / h.cost : null;
+    if (px) { mvSum += mv; costSum += h.cost; pnlSum += pnl; } else miss++;
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + h.code + "</td><td class='l'>" + h.name + "</td>" +
+    tr.innerHTML = "<td><input type='checkbox' class='hsel' data-code='" + h.code + "'" + (pickHas(h.code) ? " checked" : "") + "></td>" +
+      "<td class='hide-xs'>" + h.code + "</td><td class='l'>" + h.name +
+      "<div class='sub-m'>" + h.code + " · 市值 " + (px ? money(mv) : "-") + " · 份额 " + fmt(h.shares, 2) + "</div></td>" +
       "<td class='l'><select class='satleg' data-code='" + h.code + "'>" + groupOptions(SAT) + "</select></td>" +
-      "<td>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
-      "<td>" + (px ? fmt(px, 4) : "-") + "</td><td>" + (px ? fmt(mv, 2) : "-") + "</td>" +
-      "<td class='" + (pnl >= 0 ? "up" : "down") + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>";
+      "<td class='hide-xs'>" + fmt(h.shares, 2) + "</td><td class='hide-s'>" + fmt(h.shares ? h.cost / h.shares : 0, 4) + "</td>" +
+      "<td class='hide-xs'>" + (px ? fmt(px, 4) : "-") + "</td><td class='hide-xs'>" + (px ? fmt(mv, 2) : "-") + "</td>" +
+      "<td class='" + (pnl === null ? "" : pnlCls(pnl)) + "'>" + (pnl !== null ? fmtPnl(pnl) : "-") + "</td>" +
+      "<td class='" + (rate === null ? "" : pnlCls(rate)) + "'><b>" + rateText(rate) + "</b></td>";
     tb.appendChild(tr);
   });
-  $("#satSum").textContent = "市值 " + money(mvSum) + " · 盈亏 " + fmtPnl(pnlSum);
+  $("#satSum").textContent = "成本 " + money(costSum) + " · 市值 " + money(mvSum) +
+    " · 盈亏 " + fmtPnl(pnlSum) + "（" + rateText(costSum ? pnlSum / costSum : null) + "）" +
+    (miss ? " · " + miss + " 只缺现价" : "");
   tb.onchange = (e) => {
     const sel = e.target;
-    if (!sel.classList || !sel.classList.contains("satleg")) return;
+    if (!sel.classList) return;
+    if (sel.classList.contains("hsel")) {
+      pickToggle(sel.getAttribute("data-code"), sel.checked);
+      pickSave(); syncHoldChecks(); renderCombo();
+      return;
+    }
+    if (!sel.classList.contains("satleg")) return;
     const code = sel.getAttribute("data-code");
     S.legs[code] = sel.value;
     saveLocal(); render();
@@ -591,14 +801,16 @@ function renderAttribution() {
   rows.forEach((r) => {
     const cls = r.total >= 0 ? "up" : "down";
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td class='l'>" + r.name + " <span class='muted'>" + r.code + "</span></td>" +
-      "<td class='" + (r.realized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.realized) + "</td>" +
-      "<td class='" + (r.unrealized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.unrealized) + "</td>" +
+    tr.innerHTML = "<td class='l'>" + r.name + " <span class='muted'>" + r.code + "</span>" +
+      "<div class='sub-m'>已实现 " + fmtPnl(r.realized) + " · 浮动 " + fmtPnl(r.unrealized) + "</div></td>" +
+      "<td class='hide-xs " + (r.realized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.realized) + "</td>" +
+      "<td class='hide-xs " + (r.unrealized >= 0 ? "up" : "down") + "'>" + fmtPnl(r.unrealized) + "</td>" +
       "<td class='" + cls + "'><b>" + fmtPnl(r.total) + "</b></td>" +
-      "<td>" + (total ? pct(r.total / Math.abs(total)) : "-") + "</td>";
+      "<td class='" + (r.rate === null ? "" : pnlCls(r.rate)) + "'><b>" + rateText(r.rate) + "</b></td>" +
+      "<td class='hide-s'>" + (total ? pct(r.total / Math.abs(total)) : "-") + "</td>";
     tb.appendChild(tr);
   });
-  if (!rows.length) tb.innerHTML = "<tr><td colspan='5' class='muted'>暂无数据</td></tr>";
+  if (!rows.length) tb.innerHTML = "<tr><td colspan='6' class='muted'>暂无数据</td></tr>";
 }
 
 // ---------- 渲染：交易 ----------
