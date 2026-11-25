@@ -57,6 +57,15 @@ function ensureSettings() {
     }
   });
   S.planSkip = S.planSkip || {};
+  S.settings.pyramid = S.settings.pyramid || {
+    code: "", base: 60, freq: "day", look: 250,
+    tiers: [
+      { dd: -0.05, m: 1 },
+      { dd: -0.10, m: 1.67 },
+      { dd: -0.20, m: 2.67 },
+      { dd: -0.30, m: 4 }
+    ]
+  };
 }
 
 async function loadState() {
@@ -418,6 +427,7 @@ function render() {
   renderFlows();
   renderPlans();
   renderStrategy();
+  renderPyramid();
   renderGroups();
   renderAnalyze();
 }
@@ -1084,6 +1094,103 @@ function renderGroups() {
   };
 }
 
+function pyrCfg() { return S.settings.pyramid; }
+
+function pyrTier(dd, tiers) {
+  let cur = tiers[0];
+  tiers.forEach((x) => { if (dd <= x.dd) cur = x; });
+  return cur;
+}
+
+function renderPyramid() {
+  const c = pyrCfg();
+  const el = $("#pyrBody");
+  if (!el) return;
+  $("#pyrCode").value = c.code || "";
+  $("#pyrBase").value = c.base || "";
+  $("#pyrFreq").value = c.freq || "day";
+  $("#pyrLook").value = c.look || 250;
+
+  // 代码候选
+  const dl = $("#pyrCodes");
+  if (dl) {
+    const codes = [];
+    S.trades.forEach((x) => { if (codes.indexOf(x.code) < 0) codes.push(x.code); });
+    (S.plans || []).forEach((x) => { if (codes.indexOf(x.code) < 0) codes.push(x.code); });
+    dl.innerHTML = codes.map((x) => {
+      const nm = (S.trades.find((y) => y.code === x) || {}).name || (NAME_CACHE[x] || "");
+      return "<option value='" + x + "'>" + nm + "</option>";
+    }).join("");
+  }
+
+  const arr = PRICES[c.code];
+  const box = $("#pyrBox");
+  if (!c.code) {
+    box.innerHTML = "<div class='muted'>填个代码，自动算当前该投多少</div>";
+    el.innerHTML = "";
+    $("#pyrSum").textContent = "";
+    return;
+  }
+  if (!arr || !arr.length) {
+    if (!window.PYR_TRIED) window.PYR_TRIED = {};
+    if (!window.PYR_TRIED[c.code]) {
+      window.PYR_TRIED[c.code] = 1;
+      box.innerHTML = "<div class='muted'>正在拉取行情…</div>";
+      loadPrices([c.code], false).then(() => renderPyramid());
+    } else {
+      box.innerHTML = "<div class='muted'>没拉到该代码的行情，检查代码或稍后重试</div>";
+    }
+    el.innerHTML = "";
+    return;
+  }
+
+  const look = Math.max(20, Number(c.look) || 250);
+  const seg = arr.slice(-look);
+  const hi = Math.max.apply(null, seg.map((x) => x.px));
+  const hiItem = seg.reduce((a, b) => (b.px > a.px ? b : a));
+  const last = arr[arr.length - 1];
+  const dd = last.px / hi - 1;
+  const cur = pyrTier(dd, c.tiers);
+  const amt = (Number(c.base) || 0) * cur.m;
+
+  // 下一档
+  const deeper = c.tiers.filter((x) => x.dd < cur.dd).sort((a, b) => b.dd - a.dd)[0];
+  const unitName = c.freq === "day" ? "天" : c.freq === "week" ? "周" : "月";
+  const nm = (S.trades.find((y) => y.code === c.code) || {}).name || NAME_CACHE[c.code] || c.code;
+
+  box.innerHTML =
+    "<div style='display:flex;gap:16px;flex-wrap:wrap;align-items:baseline'>" +
+    "<div style='font-size:28px;font-weight:700;color:#1c7ed6'>" + money(amt) + "<span style='font-size:13px;color:#8892a6'> / 每" + unitName + "</span></div>" +
+    "<div class='muted'>" + nm + "（" + c.code + "）距 " + look + " 日高点 " + (dd * 100).toFixed(1) + "%" +
+    " → 第 " + (c.tiers.indexOf(cur) + 1) + " 档 ×" + cur.m + "</div></div>" +
+    (deeper
+      ? "<div class='hint' style='margin-top:6px'>再跌到 " + (deeper.dd * 100).toFixed(0) + "%（约 " +
+        fmt(hi * (1 + deeper.dd), 4) + "）就升到第 " + (c.tiers.indexOf(deeper) + 1) + " 档，每" + unitName + " " + money((Number(c.base) || 0) * deeper.m) + "</div>"
+      : "<div class='hint' style='margin-top:6px'>已在最深档位</div>") +
+    "<div class='hint'>高点 " + fmt(hi, 4) + "（" + hiItem.date + "）｜现价 " + fmt(last.px, 4) + "（" + last.date + "）</div>";
+
+  el.innerHTML = "";
+  c.tiers.forEach((x, i) => {
+    const on = x === cur;
+    const tr = document.createElement("tr");
+    if (on) tr.style.background = "#e7f5ff";
+    tr.innerHTML = "<td class='l'>第 " + (i + 1) + " 档" + (on ? " <b>← 现在</b>" : "") + "</td>" +
+      "<td>" + (x.dd * 100).toFixed(0) + "%</td>" +
+      "<td><input class='pyrM' data-i='" + i + "' type='number' step='0.1' value='" + x.m + "' style='width:70px;text-align:right'></td>" +
+      "<td>" + money((Number(c.base) || 0) * x.m) + "</td>" +
+      "<td>" + fmt(hi * (1 + x.dd), 4) + "</td>";
+    el.appendChild(tr);
+  });
+  $("#pyrSum").textContent = "基准 " + money(Number(c.base) || 0) + " / " + unitName;
+
+  el.onchange = (e) => {
+    if (!e.target.classList.contains("pyrM")) return;
+    const i = Number(e.target.getAttribute("data-i"));
+    c.tiers[i].m = Number(e.target.value) || 1;
+    saveLocal(); renderPyramid();
+  };
+}
+
 function renderStrategy() {
   const sig = SIGNAL;
   const card = $("#sigErp");
@@ -1563,6 +1670,14 @@ function bindForms() {
 
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
+  $("#pyrCode").onchange = async () => {
+    pyrCfg().code = $("#pyrCode").value.trim();
+    saveLocal(); renderPyramid();
+  };
+  $("#pyrBase").oninput = () => { pyrCfg().base = Number($("#pyrBase").value) || 0; saveLocal(); renderPyramid(); };
+  $("#pyrFreq").onchange = () => { pyrCfg().freq = $("#pyrFreq").value; saveLocal(); renderPyramid(); };
+  $("#pyrLook").onchange = () => { pyrCfg().look = Number($("#pyrLook").value) || 250; saveLocal(); renderPyramid(); };
+
   $("#btnPlanNav").onclick = manualNAV;
   $("#btnDelSel").onclick = () => {
     const ids = Array.from(document.querySelectorAll(".tsel")).filter((c) => c.checked).map((c) => c.getAttribute("data-id"));
