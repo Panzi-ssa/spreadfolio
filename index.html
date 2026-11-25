@@ -84,6 +84,9 @@
   tr.sumrow td{background:#f8fafc;font-weight:700;border-top:1px solid var(--line)}
   /* 手机端：次要数字折到名称下面一行，省出横向空间 */
   .sub-m{display:none}
+  /* 宽屏表格被长名称挤窄时，分组下拉至少保留能看见文字的宽度 */
+  @media(min-width:561px){.legsel,.satleg{min-width:118px}}
+  @media(min-width:561px){#holdTable td:nth-child(3){white-space:normal}}
 
   @media(max-width:560px){
     .kpis{grid-template-columns:repeat(2,1fr)}
@@ -452,10 +455,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。建议只在一台设备开「自动同步」，避免多端互相覆盖。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26f</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26g</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261126f"></script>
+<script src="app.js?v=20261126g"></script>
 </body>
 </html>
