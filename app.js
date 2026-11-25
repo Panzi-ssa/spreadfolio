@@ -58,7 +58,7 @@ function ensureSettings() {
   });
   S.planSkip = S.planSkip || {};
   S.settings.pyramid = S.settings.pyramid || {
-    code: "", base: 60, freq: "day", look: 250,
+    group: "", codes: [], code: "", base: 60, freq: "day", look: 250,
     tiers: [
       { dd: -0.05, m: 1 },
       { dd: -0.10, m: 1.67 },
@@ -1111,6 +1111,15 @@ function pyrCodes() {
 }
 
 // 多只标的等权合成一条曲线（按各自首个价格归一）
+function groupCodes(gid) {
+  const out = [];
+  const add = (x) => { if (x && out.indexOf(x) < 0) out.push(x); };
+  S.trades.forEach((x) => { if (legOf(x.code) === gid) add(x.code); });
+  (S.plans || []).forEach((x) => { if (legOf(x.code) === gid) add(x.code); });
+  Object.keys(S.legs || {}).forEach((k) => { if (S.legs[k] === gid) add(k); });
+  return out;
+}
+
 function pyrSeries(codes) {
   const maps = [];
   let dates = [];
@@ -1157,14 +1166,34 @@ function renderPyramid() {
     }).join("");
   }
 
-  const codes = String($("#pyrCode").value || rawVal).split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x))
-    .filter((x, i, a) => a.indexOf(x) === i);
+  // 分组下拉
+  const gsel = $("#pyrGroup");
+  if (gsel) {
+    const opts = ["<option value=''>手动输入</option>"]
+      .concat(groupList().map((g) => "<option value='" + g.id + "'>" + g.name + "</option>"));
+    gsel.innerHTML = opts.join("");
+    gsel.value = c.group || "";
+  }
+  const gid = c.group || "";
+  let codes;
+  if (gid) {
+    codes = groupCodes(gid);
+    const ci = $("#pyrCode");
+    if (ci && document.activeElement !== ci) { ci.value = codes.join(", "); ci.disabled = true; }
+  } else {
+    const ci = $("#pyrCode");
+    if (ci) ci.disabled = false;
+    codes = String($("#pyrCode").value || rawVal).split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x))
+      .filter((x, i, a) => a.indexOf(x) === i);
+  }
   const box = $("#pyrBox");
   const parts = $("#pyrParts");
   if (parts) parts.innerHTML = "";
 
   if (!codes.length) {
-    box.innerHTML = "<div class='muted'>填代码（可多只，逗号分隔），自动算当前该投多少</div>";
+    box.innerHTML = gid
+      ? "<div class='muted'>「" + groupName(gid) + "」名下还没有标的，去持仓里指定分组</div>"
+      : "<div class='muted'>选一个分组，或填代码（可多只，逗号分隔）</div>";
     el.innerHTML = "";
     $("#pyrSum").textContent = "";
     return;
@@ -1744,10 +1773,15 @@ function bindForms() {
 
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
+  $("#pyrGroup").onchange = () => {
+    pyrCfg().group = $("#pyrGroup").value;
+    saveLocal(); renderPyramid();
+  };
   $("#pyrCode").onchange = async () => {
     const raw = $("#pyrCode").value || "";
     const codes = raw.split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x)).filter((x, i, a) => a.indexOf(x) === i);
     const c = pyrCfg();
+    c.group = "";
     c.codes = codes;
     c.code = codes[0] || "";
     saveLocal(); renderPyramid();

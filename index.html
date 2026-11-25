@@ -346,7 +346,8 @@
     <div class="card">
       <h3>金字塔定投 <small id="pyrSum"></small></h3>
       <div class="row">
-        <div style="flex:1.6"><label>组合标的（逗号分隔，可多只）</label>
+        <div style="flex:1"><label>选择分组</label><select id="pyrGroup"></select></div>
+        <div style="flex:1.6"><label>或手动填代码（逗号分隔）</label>
           <input id="pyrCode" list="pyrCodes" placeholder="021000, 019441, 019736">
           <datalist id="pyrCodes"></datalist>
         </div>
@@ -451,10 +452,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。建议只在一台设备开「自动同步」，避免多端互相覆盖。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26e</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26f</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261126e"></script>
+<script src="app.js?v=20261126f"></script>
 </body>
 </html>
