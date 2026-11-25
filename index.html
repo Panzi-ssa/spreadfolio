@@ -362,7 +362,7 @@
       <div class="tablewrap"><table>
         <thead><tr><th class="l">档位</th><th>触发回撤</th><th>倍数</th><th>每期金额</th><th>对应价格</th></tr></thead>
         <tbody id="pyrBody"></tbody></table></div>
-      <div class="hint">跌得越深投得越多。倍数可改（保存后生效）；价格按「当前类型」的数据源取（场内收盘价 / 场外净值）。</div>
+      <div class="hint">跌得越深投得越多。触发回撤和倍数都能直接改（改完自动按回撤重排）；价格按「当前类型」取（场内收盘价 / 场外净值）。</div>
     </div>
 
     <div class="card">
@@ -447,10 +447,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。建议只在一台设备开「自动同步」，避免多端互相覆盖。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26c</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26d</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261126c"></script>
+<script src="app.js?v=20261126d"></script>
 </body>
 </html>

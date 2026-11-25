@@ -1097,6 +1097,7 @@ function renderGroups() {
 function pyrCfg() { return S.settings.pyramid; }
 
 function pyrTier(dd, tiers) {
+  tiers.sort((a, b) => b.dd - a.dd);
   let cur = tiers[0];
   tiers.forEach((x) => { if (dd <= x.dd) cur = x; });
   return cur;
@@ -1175,7 +1176,7 @@ function renderPyramid() {
     const tr = document.createElement("tr");
     if (on) tr.style.background = "#e7f5ff";
     tr.innerHTML = "<td class='l'>第 " + (i + 1) + " 档" + (on ? " <b>← 现在</b>" : "") + "</td>" +
-      "<td>" + (x.dd * 100).toFixed(0) + "%</td>" +
+      "<td><input class='pyrDD' data-i='" + i + "' type='number' step='1' value='" + (x.dd * 100).toFixed(0) + "' style='width:70px;text-align:right'>%</td>" +
       "<td><input class='pyrM' data-i='" + i + "' type='number' step='0.1' value='" + x.m + "' style='width:70px;text-align:right'></td>" +
       "<td>" + money((Number(c.base) || 0) * x.m) + "</td>" +
       "<td>" + fmt(hi * (1 + x.dd), 4) + "</td>";
@@ -1184,9 +1185,19 @@ function renderPyramid() {
   $("#pyrSum").textContent = "基准 " + money(Number(c.base) || 0) + " / " + unitName;
 
   el.onchange = (e) => {
-    if (!e.target.classList.contains("pyrM")) return;
+    const cls = e.target.classList && e.target.classList;
+    if (!cls) return;
     const i = Number(e.target.getAttribute("data-i"));
-    c.tiers[i].m = Number(e.target.value) || 1;
+    if (cls.contains("pyrM")) {
+      c.tiers[i].m = Number(e.target.value) || 1;
+    } else if (cls.contains("pyrDD")) {
+      const v = Number(e.target.value);
+      if (!isFinite(v)) return;
+      c.tiers[i].dd = Math.min(0, v) / 100;
+      c.tiers.sort((a, b) => b.dd - a.dd);
+    } else {
+      return;
+    }
     saveLocal(); renderPyramid();
   };
 }
