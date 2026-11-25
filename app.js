@@ -1103,16 +1103,49 @@ function pyrTier(dd, tiers) {
   return cur;
 }
 
+function pyrCodes() {
+  const c = pyrCfg();
+  const raw = (c.codes && c.codes.length) ? c.codes.join(",") : (c.code || "");
+  const list = String($("#pyrCode").value || raw).split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x));
+  return list.filter((x, i) => list.indexOf(x) === i);
+}
+
+// 多只标的等权合成一条曲线（按各自首个价格归一）
+function pyrSeries(codes) {
+  const maps = [];
+  let dates = [];
+  codes.forEach((c) => {
+    const arr = PRICES[c];
+    if (!arr || !arr.length) return;
+    const m = {};
+    arr.forEach((x) => { m[x.date] = x.px; dates.push(x.date); });
+    maps.push({ code: c, m: m, base: arr[0].px });
+  });
+  if (!maps.length) return null;
+  dates = Array.from(new Set(dates)).sort();
+  const last = maps.map(() => null);
+  const out = [];
+  dates.forEach((d) => {
+    let sum = 0, n = 0;
+    maps.forEach((mp, k) => {
+      if (mp.m[d] != null) last[k] = mp.m[d];
+      if (last[k] != null) { sum += last[k] / mp.base; n++; }
+    });
+    if (n) out.push({ date: d, px: sum / n });
+  });
+  return out;
+}
+
 function renderPyramid() {
   const c = pyrCfg();
   const el = $("#pyrBody");
   if (!el) return;
-  $("#pyrCode").value = c.code || "";
+  const rawVal = (c.codes && c.codes.length) ? c.codes.join(", ") : (c.code || "");
+  if (document.activeElement !== $("#pyrCode")) $("#pyrCode").value = rawVal;
   $("#pyrBase").value = c.base || "";
   $("#pyrFreq").value = c.freq || "day";
   $("#pyrLook").value = c.look || 250;
 
-  // 代码候选
   const dl = $("#pyrCodes");
   if (dl) {
     const codes = [];
@@ -1124,76 +1157,106 @@ function renderPyramid() {
     }).join("");
   }
 
-  const arr = PRICES[c.code];
+  const codes = String($("#pyrCode").value || rawVal).split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x))
+    .filter((x, i, a) => a.indexOf(x) === i);
   const box = $("#pyrBox");
-  if (!c.code) {
-    box.innerHTML = "<div class='muted'>填个代码，自动算当前该投多少</div>";
+  const parts = $("#pyrParts");
+  if (parts) parts.innerHTML = "";
+
+  if (!codes.length) {
+    box.innerHTML = "<div class='muted'>填代码（可多只，逗号分隔），自动算当前该投多少</div>";
     el.innerHTML = "";
     $("#pyrSum").textContent = "";
     return;
   }
-  if (!arr || !arr.length) {
-    if (!window.PYR_TRIED) window.PYR_TRIED = {};
-    if (!window.PYR_TRIED[c.code]) {
-      window.PYR_TRIED[c.code] = 1;
-      box.innerHTML = "<div class='muted'>正在拉取行情…</div>";
-      loadPrices([c.code], false).then(() => renderPyramid());
-    } else {
-      box.innerHTML = "<div class='muted'>没拉到该代码的行情，检查代码或稍后重试</div>";
-    }
+
+  if (!window.PYR_TRIED) window.PYR_TRIED = {};
+  const missing = codes.filter((x) => !PRICES[x]);
+  const fresh = missing.filter((x) => !window.PYR_TRIED[x]);
+  if (fresh.length) {
+    fresh.forEach((x) => { window.PYR_TRIED[x] = 1; });
+    box.innerHTML = "<div class='muted'>正在拉取行情…（" + fresh.join(" ") + "）</div>";
+    loadPrices(fresh, false).then(() => renderPyramid());
+    if (!codes.some((x) => PRICES[x])) { el.innerHTML = ""; return; }
+  }
+
+  const series = pyrSeries(codes.filter((x) => PRICES[x] && PRICES[x].length));
+  if (!series || !series.length) {
+    box.innerHTML = "<div class='muted'>没拉到这些代码的行情，检查代码</div>";
     el.innerHTML = "";
     return;
   }
 
   const look = Math.max(20, Number(c.look) || 250);
-  const seg = arr.slice(-look);
+  const seg = series.slice(-look);
   const hi = Math.max.apply(null, seg.map((x) => x.px));
   const hiItem = seg.reduce((a, b) => (b.px > a.px ? b : a));
-  const last = arr[arr.length - 1];
+  const last = series[series.length - 1];
   const dd = last.px / hi - 1;
   const cur = pyrTier(dd, c.tiers);
   const amt = (Number(c.base) || 0) * cur.m;
-
-  // 下一档
-  const deeper = c.tiers.filter((x) => x.dd < cur.dd).sort((a, b) => b.dd - a.dd)[0];
   const unitName = c.freq === "day" ? "天" : c.freq === "week" ? "周" : "月";
-  const nm = (S.trades.find((y) => y.code === c.code) || {}).name || NAME_CACHE[c.code] || c.code;
+  const deeper = c.tiers.filter((x) => x.dd < cur.dd).sort((a, b) => b.dd - a.dd)[0];
+  const label = codes.length === 1
+    ? ((S.trades.find((y) => y.code === codes[0]) || {}).name || NAME_CACHE[codes[0]] || codes[0])
+    : codes.length + " 只等权组合";
 
   box.innerHTML =
     "<div style='display:flex;gap:16px;flex-wrap:wrap;align-items:baseline'>" +
-    "<div style='font-size:28px;font-weight:700;color:#1c7ed6'>" + money(amt) + "<span style='font-size:13px;color:#8892a6'> / 每" + unitName + "</span></div>" +
-    "<div class='muted'>" + nm + "（" + c.code + "）距 " + look + " 日高点 " + (dd * 100).toFixed(1) + "%" +
+    "<div style='font-size:28px;font-weight:700;color:#1c7ed6'>" + money(amt) +
+    "<span style='font-size:13px;color:#8892a6'> / 每" + unitName + "</span></div>" +
+    "<div class='muted'>" + label + " 距 " + look + " 日高点 " + (dd * 100).toFixed(1) + "%" +
     " → 第 " + (c.tiers.indexOf(cur) + 1) + " 档 ×" + cur.m + "</div></div>" +
     (deeper
-      ? "<div class='hint' style='margin-top:6px'>再跌到 " + (deeper.dd * 100).toFixed(0) + "%（约 " +
-        fmt(hi * (1 + deeper.dd), 4) + "）就升到第 " + (c.tiers.indexOf(deeper) + 1) + " 档，每" + unitName + " " + money((Number(c.base) || 0) * deeper.m) + "</div>"
+      ? "<div class='hint' style='margin-top:6px'>再跌到 " + (deeper.dd * 100).toFixed(0) +
+        "% 就升到第 " + (c.tiers.indexOf(deeper) + 1) + " 档，每" + unitName + " " +
+        money((Number(c.base) || 0) * deeper.m) + "</div>"
       : "<div class='hint' style='margin-top:6px'>已在最深档位</div>") +
-    "<div class='hint'>高点 " + fmt(hi, 4) + "（" + hiItem.date + "）｜现价 " + fmt(last.px, 4) + "（" + last.date + "）</div>";
+    "<div class='hint'>组合高点 " + fmt(hi, 4) + "（" + hiItem.date + "）｜现值 " + fmt(last.px, 4) + "（" + last.date + "）</div>";
+
+  if (parts) {
+    codes.forEach((cd) => {
+      const arr = PRICES[cd];
+      if (!arr || !arr.length) return;
+      const sg = arr.slice(-look);
+      const h = Math.max.apply(null, sg.map((x) => x.px));
+      const l = arr[arr.length - 1];
+      const d2 = l.px / h - 1;
+      const nm = (S.trades.find((y) => y.code === cd) || {}).name || NAME_CACHE[cd] || cd;
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td class='l'>" + nm + " <span class='muted'>" + cd + "</span></td>" +
+        "<td>" + (100 / codes.length).toFixed(1) + "%</td>" +
+        "<td class='" + (d2 < -0.1 ? "down" : "") + "'>" + (d2 * 100).toFixed(1) + "%</td>" +
+        "<td>" + money(amt / codes.length) + "</td>";
+      parts.appendChild(tr);
+    });
+  }
 
   el.innerHTML = "";
-  c.tiers.forEach((x, i) => {
+  c.tiers.forEach((x, i2) => {
     const on = x === cur;
     const tr = document.createElement("tr");
     if (on) tr.style.background = "#e7f5ff";
-    tr.innerHTML = "<td class='l'>第 " + (i + 1) + " 档" + (on ? " <b>← 现在</b>" : "") + "</td>" +
-      "<td><input class='pyrDD' data-i='" + i + "' type='number' step='1' value='" + (x.dd * 100).toFixed(0) + "' style='width:70px;text-align:right'>%</td>" +
-      "<td><input class='pyrM' data-i='" + i + "' type='number' step='0.1' value='" + x.m + "' style='width:70px;text-align:right'></td>" +
+    tr.innerHTML = "<td class='l'>第 " + (i2 + 1) + " 档" + (on ? " <b>← 现在</b>" : "") + "</td>" +
+      "<td><input class='pyrDD' data-i='" + i2 + "' type='number' step='1' value='" + (x.dd * 100).toFixed(0) + "' style='width:70px;text-align:right'>%</td>" +
+      "<td><input class='pyrM' data-i='" + i2 + "' type='number' step='0.1' value='" + x.m + "' style='width:70px;text-align:right'></td>" +
       "<td>" + money((Number(c.base) || 0) * x.m) + "</td>" +
       "<td>" + fmt(hi * (1 + x.dd), 4) + "</td>";
     el.appendChild(tr);
   });
-  $("#pyrSum").textContent = "基准 " + money(Number(c.base) || 0) + " / " + unitName;
+  $("#pyrSum").textContent = "基准 " + money(Number(c.base) || 0) + " / " + unitName +
+    (codes.length > 1 ? " · " + codes.length + " 只等权" : "");
 
   el.onchange = (e) => {
     const cls = e.target.classList && e.target.classList;
     if (!cls) return;
-    const i = Number(e.target.getAttribute("data-i"));
+    const k = Number(e.target.getAttribute("data-i"));
     if (cls.contains("pyrM")) {
-      c.tiers[i].m = Number(e.target.value) || 1;
+      c.tiers[k].m = Number(e.target.value) || 1;
     } else if (cls.contains("pyrDD")) {
       const v = Number(e.target.value);
       if (!isFinite(v)) return;
-      c.tiers[i].dd = Math.min(0, v) / 100;
+      c.tiers[k].dd = Math.min(0, v) / 100;
       c.tiers.sort((a, b) => b.dd - a.dd);
     } else {
       return;
@@ -1682,7 +1745,11 @@ function bindForms() {
   $("#plStart").value = today();
   $("#btnPlanSync").onclick = async () => { await refreshPrices(true); };
   $("#pyrCode").onchange = async () => {
-    pyrCfg().code = $("#pyrCode").value.trim();
+    const raw = $("#pyrCode").value || "";
+    const codes = raw.split(/[,，\s]+/).filter((x) => /^\d{6}$/.test(x)).filter((x, i, a) => a.indexOf(x) === i);
+    const c = pyrCfg();
+    c.codes = codes;
+    c.code = codes[0] || "";
     saveLocal(); renderPyramid();
   };
   $("#pyrBase").oninput = () => { pyrCfg().base = Number($("#pyrBase").value) || 0; saveLocal(); renderPyramid(); };

@@ -346,8 +346,8 @@
     <div class="card">
       <h3>金字塔定投 <small id="pyrSum"></small></h3>
       <div class="row">
-        <div style="flex:1"><label>标的代码</label>
-          <input id="pyrCode" list="pyrCodes" placeholder="021000">
+        <div style="flex:1.6"><label>组合标的（逗号分隔，可多只）</label>
+          <input id="pyrCode" list="pyrCodes" placeholder="021000, 019441, 019736">
           <datalist id="pyrCodes"></datalist>
         </div>
         <div style="flex:1"><label>1 档金额（元/期）</label><input id="pyrBase" type="number" step="0.01" placeholder="60"></div>
@@ -362,7 +362,11 @@
       <div class="tablewrap"><table>
         <thead><tr><th class="l">档位</th><th>触发回撤</th><th>倍数</th><th>每期金额</th><th>对应价格</th></tr></thead>
         <tbody id="pyrBody"></tbody></table></div>
-      <div class="hint">跌得越深投得越多。触发回撤和倍数都能直接改（改完自动按回撤重排）；价格按「当前类型」取（场内收盘价 / 场外净值）。</div>
+      <div class="tablewrap" style="margin-top:10px"><table>
+        <thead><tr><th class="l">成分</th><th>权重</th><th>各自回撤</th><th>分到金额</th></tr></thead>
+        <tbody id="pyrParts"></tbody></table></div>
+      <div class="hint">跌得越深投得越多。触发回撤和倍数都能直接改（改完自动按回撤重排）；
+        多只标的按等权合成一条净值曲线来算回撤，金额平均分到每只。</div>
     </div>
 
     <div class="card">
@@ -447,10 +451,10 @@
       <input type="file" id="fileImport" accept=".json" style="display:none">
       <div class="row"><button id="btnRefresh">重新拉取行情</button></div>
       <div class="hint">换手机时：先导出 JSON 传过去导入，或配置好 GitHub 直接拉取。建议只在一台设备开「自动同步」，避免多端互相覆盖。</div>
-      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26d</div>
+      <div class="hint" id="verNote" style="margin-top:6px;color:#adb5bd">版本 2026-11-26e</div>
     </div>
   </section>
 </main>
-<script src="app.js?v=20261126d"></script>
+<script src="app.js?v=20261126e"></script>
 </body>
 </html>
